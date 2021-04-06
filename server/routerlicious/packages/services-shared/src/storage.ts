@@ -10,7 +10,7 @@ import {
     ISequencedDocumentMessage,
     ISummaryTree,
 } from "@fluidframework/protocol-definitions";
-import { IGitCache, SummaryTreeUploadManager } from "@fluidframework/server-services-client";
+import { IGitCache, SnapshotTreeUploadManager, SummaryTreeUploadManager } from "@fluidframework/server-services-client";
 import {
     ICollection,
     IDeliState,
@@ -34,6 +34,7 @@ export class DocumentStorage implements IDocumentStorage {
     constructor(
         private readonly databaseManager: IDatabaseManager,
         private readonly tenantManager: ITenantManager,
+        private readonly singleSummaryUploadApi = false,
     ) { }
 
     /**
@@ -62,7 +63,9 @@ export class DocumentStorage implements IDocumentStorage {
         const gitManager = tenant.gitManager;
 
         const blobsShaCache = new Map<string, string>();
-        const summaryTreeUploadManager = new SummaryTreeUploadManager(gitManager, blobsShaCache, () => undefined);
+        const summaryTreeUploadManager = this.singleSummaryUploadApi
+            ? new SnapshotTreeUploadManager(gitManager)
+            : new SummaryTreeUploadManager(gitManager, blobsShaCache, () => undefined);
         const handle = await summaryTreeUploadManager.writeSummaryTree(summary, "");
 
         // At this point the summary op and its data are all valid and we can perform the write to history

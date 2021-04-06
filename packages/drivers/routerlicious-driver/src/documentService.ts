@@ -6,7 +6,6 @@
 import { assert } from "@fluidframework/common-utils";
 import * as api from "@fluidframework/driver-definitions";
 import { IClient, IErrorTrackingService } from "@fluidframework/protocol-definitions";
-import { GitManager, Historian, ICredentials, IGitCache } from "@fluidframework/server-services-client";
 import io from "socket.io-client";
 import { ITelemetryLogger } from "@fluidframework/common-definitions";
 import { DeltaStorageService, DocumentDeltaStorageService } from "./deltaStorageService";
@@ -15,6 +14,7 @@ import { R11sDocumentDeltaConnection } from "./documentDeltaConnection";
 import { NullBlobStorageService } from "./nullBlobStorageService";
 import { ITokenProvider } from "./tokens";
 import { RouterliciousStorageRestWrapper } from "./restWrapper";
+import { GitManager, Historian, ICredentials, IGitCache } from "./services-client";
 
 /**
  * The DocumentService manages the Socket.IO connection and manages routing requests to connected

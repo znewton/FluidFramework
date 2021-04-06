@@ -12,3 +12,4 @@ export * from "./documentService2";
 export * from "./nullBlobStorageService";
 export * from "./documentServiceFactory";
 export * from "./defaultTokenProvider";
+export * from "./services-client";

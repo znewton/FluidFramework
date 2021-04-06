@@ -6,11 +6,16 @@
 import * as api from "@fluidframework/driver-definitions";
 import { IClient } from "@fluidframework/protocol-definitions";
 import * as socketStorage from "@fluidframework/routerlicious-driver";
-import { GitManager } from "@fluidframework/server-services-client";
 import { TestHistorian } from "@fluidframework/server-test-utils";
 import { ILocalDeltaConnectionServer } from "@fluidframework/server-local-server";
 import { TelemetryNullLogger } from "@fluidframework/common-utils";
 import { LocalDeltaStorageService, LocalDocumentDeltaConnection } from ".";
+
+class SpecialTestHistorian extends TestHistorian implements socketStorage.IHistorian {
+    public async createSummary(): Promise<any> {
+        throw new Error("err");
+    }
+}
 
 /**
  * Basic implementation of a document service for local use.
@@ -41,7 +46,8 @@ export class LocalDocumentService implements api.IDocumentService {
     public async connectToStorage(): Promise<api.IDocumentStorageService> {
         return new socketStorage.DocumentStorageService(
             this.documentId,
-            new GitManager(new TestHistorian(this.localDeltaConnectionServer.testDbFactory.testDatabase)),
+            new socketStorage.GitManager(
+                new SpecialTestHistorian(this.localDeltaConnectionServer.testDbFactory.testDatabase)),
             new TelemetryNullLogger(),
             { minBlobSize: 2048 }); // Test blob aggregation.
     }

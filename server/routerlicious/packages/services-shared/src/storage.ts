@@ -66,6 +66,7 @@ export class DocumentStorage implements IDocumentStorage {
         const summaryTreeUploadManager = this.singleSummaryUploadApi
             ? new SnapshotTreeUploadManager(gitManager)
             : new SummaryTreeUploadManager(gitManager, blobsShaCache, () => undefined);
+        await (new SnapshotTreeUploadManager(gitManager)).writeSummaryTree(summary, "");
         const handle = await summaryTreeUploadManager.writeSummaryTree(summary, "");
 
         // At this point the summary op and its data are all valid and we can perform the write to history

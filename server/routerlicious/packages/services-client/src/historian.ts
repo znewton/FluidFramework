@@ -5,6 +5,7 @@
 
 import { fromUtf8ToBase64 } from "@fluidframework/common-utils";
 import * as git from "@fluidframework/gitresources";
+import { ISummarySnapshotPayload, ISummarySnapshotResponse } from "@fluidframework/protocol-definitions";
 import { RestWrapper, BasicRestWrapper } from "./restWrapper";
 import { IHistorian } from "./storage";
 
@@ -132,6 +133,13 @@ export class Historian implements IHistorian {
         return this.restWrapper.get<git.ITree>(
             `/git/trees/${encodeURIComponent(sha)}`,
             this.getQueryString({ recursive: recursive ? 1 : 0 }));
+    }
+    public async createSummary(summary: ISummarySnapshotPayload): Promise<ISummarySnapshotResponse> {
+        console.debug(summary);
+        console.debug(JSON.stringify(summary));
+        return Promise.resolve({
+            id: "Not implemented",
+        });
     }
     /* eslint-enable @typescript-eslint/promise-function-async */
 

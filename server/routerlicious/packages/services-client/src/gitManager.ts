@@ -140,6 +140,10 @@ export class GitManager implements IGitManager {
         return this.historian.createCommit(commit);
     }
 
+    public async createSummary(summary: api.ISummarySnapshotPayload): Promise<api.ISummarySnapshotResponse> {
+        return this.historian.createSummary(summary);
+    }
+
     public async getRef(ref: string): Promise<resources.IRef> {
         return this.historian
             .getRef(`heads/${ref}`)

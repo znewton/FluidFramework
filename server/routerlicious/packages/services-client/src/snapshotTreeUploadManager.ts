@@ -50,9 +50,8 @@ import { IGitManager, ISummaryUploadManager } from "./storage";
             entries: snapshotTree.entries,
             type: SummarySnapshotType.Channel,
         };
-        // TODO: Replace with GitManager.createSummary()
-        return this.manager.createBlob(JSON.stringify(snapshotPayload), "utf8")
-            .then((response) => response.sha);
+
+        return this.manager.createSummary(snapshotPayload).then((response) => response.id);
     }
     /**
      * Converts the summary tree to a snapshot tree to be uploaded. Always upload full snapshot tree.

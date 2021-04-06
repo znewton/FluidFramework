@@ -255,7 +255,9 @@ export class AlfredResourcesFactory implements core.IResourcesFactory<AlfredReso
             deltasCollectionName,
             scribeCollectionName);
 
-        const storage = new services.DocumentStorage(databaseManager, tenantManager);
+        const useSingleSummaryUploadApi =
+            config.get("storage:useSingleSummaryUploadApi") as boolean | undefined ?? false;
+        const storage = new services.DocumentStorage(databaseManager, tenantManager, useSingleSummaryUploadApi);
 
         const maxSendMessageSize = bytes.parse(config.get("alfred:maxMessageSize"));
         const address = `${await utils.getHostIp()}:4000`;

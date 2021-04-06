@@ -102,6 +102,9 @@
             "send": "deltas"
         }
     },
+    "storage": {
+        "useSingleSummaryUploadApi": false
+    },
     "auth": {
         "endpoint": "http://riddler:5000",
         "maxTokenLifetimeSec": 3600,

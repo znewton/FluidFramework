@@ -34,7 +34,7 @@ export class DocumentStorage implements IDocumentStorage {
     constructor(
         private readonly databaseManager: IDatabaseManager,
         private readonly tenantManager: ITenantManager,
-        private readonly singleSummaryUploadApi = false,
+        private readonly singleSummaryUploadApi = true,
     ) { }
 
     /**
@@ -63,11 +63,11 @@ export class DocumentStorage implements IDocumentStorage {
         const gitManager = tenant.gitManager;
 
         const blobsShaCache = new Map<string, string>();
-        const summaryTreeUploadManager = this.singleSummaryUploadApi
+        const summaryUploadManager = this.singleSummaryUploadApi
             ? new SnapshotTreeUploadManager(gitManager)
             : new SummaryTreeUploadManager(gitManager, blobsShaCache, () => undefined);
-        await (new SnapshotTreeUploadManager(gitManager)).writeSummaryTree(summary, "");
-        const handle = await summaryTreeUploadManager.writeSummaryTree(summary, "");
+        // await (new SnapshotTreeUploadManager(gitManager)).writeSummaryTree(summary, "");
+        const handle = await summaryUploadManager.writeSummaryTree(summary, "");
 
         // At this point the summary op and its data are all valid and we can perform the write to history
         const quorumSnapshot: IQuorumSnapshot = {

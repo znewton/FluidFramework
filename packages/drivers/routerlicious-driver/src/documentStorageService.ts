@@ -52,7 +52,7 @@ export class DocumentStorageService implements IDocumentStorageService {
         public manager: GitManager,
         private readonly logger: ITelemetryLogger,
         public readonly policies?: IDocumentStorageServicePolicies,
-        singleSummaryUpload = false) {
+        singleSummaryUpload = true) {
         this.summaryUploadManager = singleSummaryUpload
             ? new SummaryTreeUploadManager(
                 this.manager,
@@ -124,10 +124,11 @@ export class DocumentStorageService implements IDocumentStorageService {
     }
 
     public async uploadSummaryWithContext(summary: ISummaryTree, context: ISummaryContext): Promise<string> {
-        await PerformanceEvent.timedExecAsync(this.logger, {
-            eventName: "singleUploadSummary",
-        },
-        async () => (new SnapshotTreeUploadManager(this.manager)).writeSummaryTree(summary, context.ackHandle ?? ""));
+        // await PerformanceEvent.timedExecAsync(this.logger, {
+        //     eventName: "singleUploadSummary",
+        // },
+        // async () =>
+        //     (new SnapshotTreeUploadManager(this.manager)).writeSummaryTree(summary, context.ackHandle ?? ""));
         return PerformanceEvent.timedExecAsync(
             this.logger,
             {

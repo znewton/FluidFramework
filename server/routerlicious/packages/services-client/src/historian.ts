@@ -126,7 +126,7 @@ export class Historian implements IHistorian {
     }
 
     public createTree(tree: git.ICreateTreeParams): Promise<git.ITree> {
-        return this.restWrapper.post<git.ITree>(`/git/trees`, tree, this.getQueryString(tree));
+        return this.restWrapper.post<git.ITree>(`/git/trees`, tree, this.getQueryString());
     }
 
     public getTree(sha: string, recursive: boolean): Promise<git.ITree> {
@@ -135,11 +135,7 @@ export class Historian implements IHistorian {
             this.getQueryString({ recursive: recursive ? 1 : 0 }));
     }
     public async createSummary(summary: ISummarySnapshotPayload): Promise<ISummarySnapshotResponse> {
-        console.debug(summary);
-        console.debug(JSON.stringify(summary));
-        return Promise.resolve({
-            id: "Not implemented",
-        });
+        return this.restWrapper.post<ISummarySnapshotResponse>(`/git/summaries`, summary, this.getQueryString());
     }
     /* eslint-enable @typescript-eslint/promise-function-async */
 

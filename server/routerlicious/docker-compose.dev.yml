@@ -4,27 +4,41 @@ services:
         volumes:
             - .:/usr/src/server
             - /usr/src/server/node_modules/zookeeper
+        environment:
+            - "NODE_TLS_REJECT_UNAUTHORIZED=0"
     deli:
         volumes:
             - .:/usr/src/server
             - /usr/src/server/node_modules/zookeeper
+        environment:
+            - "NODE_TLS_REJECT_UNAUTHORIZED=0"
     scriptorium:
         volumes:
             - .:/usr/src/server
             - /usr/src/server/node_modules/zookeeper
+        environment:
+            - "NODE_TLS_REJECT_UNAUTHORIZED=0"
     copier:
         volumes:
             - .:/usr/src/server
             - /usr/src/server/node_modules/zookeeper
+        environment:
+            - "NODE_TLS_REJECT_UNAUTHORIZED=0"
     scribe:
         volumes:
             - .:/usr/src/server
             - /usr/src/server/node_modules/zookeeper
+        environment:
+            - "NODE_TLS_REJECT_UNAUTHORIZED=0"
     foreman:
         volumes:
             - .:/usr/src/server
             - /usr/src/server/node_modules/zookeeper
+        environment:
+            - "NODE_TLS_REJECT_UNAUTHORIZED=0"
     riddler:
         volumes:
             - .:/usr/src/server
             - /usr/src/server/node_modules/zookeeper
+        environment:
+            - "NODE_TLS_REJECT_UNAUTHORIZED=0"

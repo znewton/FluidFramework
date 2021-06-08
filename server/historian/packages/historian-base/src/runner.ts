@@ -4,19 +4,22 @@
  */
 
 import { AsyncLocalStorage } from "async_hooks";
+import { readFileSync } from "fs";
 import { Deferred } from "@fluidframework/common-utils";
-import { IThrottler, IWebServer, IWebServerFactory, IRunner } from "@fluidframework/server-services-core";
+import { IThrottler, IWebServer, IRunner } from "@fluidframework/server-services-core";
 import { Provider } from "nconf";
 import * as winston from "winston";
+import { ServerOptions } from "spdy";
 import { ICache, ITenantService } from "./services";
 import * as app from "./app";
+import { IHttp2WebServerFactory } from "./webServer";
 
 export class HistorianRunner implements IRunner {
     private server: IWebServer;
     private runningDeferred: Deferred<void>;
 
     constructor(
-        private readonly serverFactory: IWebServerFactory,
+        private readonly serverFactory: IHttp2WebServerFactory,
         private readonly config: Provider,
         private readonly port: string | number,
         private readonly riddler: ITenantService,
@@ -32,7 +35,11 @@ export class HistorianRunner implements IRunner {
         const historian = app.create(this.config, this.riddler, this.cache, this.throttler, this.asyncLocalStorage);
         historian.set("port", this.port);
 
-        this.server = this.serverFactory.create(historian);
+        const serverOptions: ServerOptions = {
+            key: readFileSync(this.config.get("http:keyFilePath")),
+            cert: readFileSync(this.config.get("http:certFilePath")),
+        };
+        this.server = this.serverFactory.create(historian, serverOptions);
         const httpServer = this.server.httpServer;
 
         // Listen on provided port, on all network interfaces.

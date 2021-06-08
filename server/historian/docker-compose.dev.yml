@@ -1,12 +1,15 @@
 version: '3.4'
 services:
     historian:
-        build: .
         ports:
             - 3001:3000
         volumes:
-            - .:/usr/src/server
+            - .:/home/node/server
+            - /home/node/server/node_modules/zookeeper
         restart: always
+        environment:
+            - "http_keyFilePath=/home/node/server/certs/localhost.key"
+            - "http_certFilePath=/home/node/server/certs/localhost.crt"
 networks:
   default:
       external:

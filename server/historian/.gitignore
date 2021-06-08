@@ -10,3 +10,8 @@ npm-debug.log
 
 # Code coverage
 nyc/
+
+# Certs
+**/*.key
+**/*.crt
+**/*.pem

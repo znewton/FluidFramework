@@ -67,14 +67,14 @@ services:
             - DEBUG=fluid:*
             - NODE_ENV=development
         restart: always
-    historian:
-        image: mcr.microsoft.com/fluidframework/routerlicious/historian:latest
-        ports:
-            - "3001:3000"
-        environment:
-            - DEBUG=fluid:*
-            - NODE_ENV=development
-        restart: always
+    # historian:
+    #     image: mcr.microsoft.com/fluidframework/routerlicious/historian:latest
+    #     ports:
+    #         - "3001:3000"
+    #     environment:
+    #         - DEBUG=fluid:*
+    #         - NODE_ENV=development
+    #     restart: always
     gitrest:
         image: mcr.microsoft.com/fluidframework/routerlicious/gitrest:latest
         environment:

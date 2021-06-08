@@ -5,11 +5,11 @@ FROM node:12.20.1-slim AS base
 
 # node-gyp dependencies
 RUN apt-get update && apt-get install -y \
-        python3 \
-        make \
-        git \
-        curl \
-        g++
+    python3 \
+    make \
+    git \
+    curl \
+    g++
 
 # Add Tini
 ENV TINI_VERSION v0.18.0

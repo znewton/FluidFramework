@@ -11,9 +11,10 @@ import winston from "winston";
 import * as historianServices from "./services";
 import { normalizePort } from "./utils";
 import { HistorianRunner } from "./runner";
+import { Http2WebServerFactory, IHttp2WebServerFactory } from "./webServer";
 
 export class HistorianResources implements core.IResources {
-    public webServerFactory: core.IWebServerFactory;
+    public webServerFactory: IHttp2WebServerFactory;
 
     constructor(
         public readonly config: Provider,
@@ -22,7 +23,7 @@ export class HistorianResources implements core.IResources {
         public readonly cache: historianServices.RedisCache,
         public readonly throttler: core.IThrottler,
         public readonly asyncLocalStorage?: AsyncLocalStorage<string>) {
-        this.webServerFactory = new services.BasicWebServerFactory();
+        this.webServerFactory = new Http2WebServerFactory();
     }
 
     public async dispose(): Promise<void> {

@@ -9,17 +9,25 @@ For consistency we recommend building and developing within a container
 
 You can build the production container by running.
 
-`docker build -t historian .`
+```shell
+docker build -t historian .
+```
+
+Generate necessary local certificates by following the instructions in `certs/README.md`
 
 And then mount it for development by running.
 
-`docker run -it -v "$(pwd):/home/node/server" -p 3000:3000 node:8.15.0-slim /bin/bash`
+```shell
+docker run -it -v "$(pwd):/home/node/server" -p 3000:3000 node:8.15.0-slim /bin/bash
+```
 
 When mounted for development you'll want to run the following commands. These also work if you would like to
 develop outside of the container.
 
-`npm install`
-`npm run build`
+```shell
+npm install
+npm run build
+```
 
 Alternatively, for development, start a mounted container using
 
@@ -47,7 +55,9 @@ your local files into the container so you will need to npm install, npm run bui
 
 ## Testing
 
-`docker run -t historian npm test`
+```shell
+docker run -t historian npm test
+```
 
 ## Trademark
 

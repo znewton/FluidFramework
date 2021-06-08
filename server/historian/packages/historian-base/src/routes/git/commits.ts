@@ -62,7 +62,15 @@ export function create(
             const commitP = getCommit(
                 request.params.tenantId,
                 request.get("Authorization"),
-                request.params.sha, useCache);
+                request.params.sha, useCache).then((commit) => {
+                    const host = request.headers.host ? `https://${request.headers.host}` : "";
+                    const treePath = `/repos/${request.params.tenantId}/git/trees/${commits[0]?.sha}?recursive=1`;
+                    winston.info(`Linking ${host}${treePath}`);
+                    response.setHeader(
+                        "Link",
+                        `<${host}${treePath}>; rel="preload"`,
+                    );
+                });
 
             utils.handleResponse(commitP, response, useCache);
     });

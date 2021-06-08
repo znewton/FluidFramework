@@ -42,7 +42,15 @@ export function create(
                 request.params.tenantId,
                 request.get("Authorization"),
                 utils.queryParamToString(request.query.sha),
-                utils.queryParamToNumber(request.query.count));
+                utils.queryParamToNumber(request.query.count)).then((commits) => {
+                    const host = request.headers.host ? `https://${request.headers.host}` : "";
+                    const treePath = `/repos/${request.params.tenantId}/git/trees/${commits[0]?.sha}?recursive=1`;
+                    winston.info(`Linking ${host}${treePath}`);
+                    response.setHeader(
+                        "Link",
+                        `<${host}${treePath}>; rel="preload"`,
+                    );
+                });
 
             utils.handleResponse(
                 commitsP,

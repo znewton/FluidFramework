@@ -13,7 +13,8 @@ You can build the production container by running.
 docker build -t historian .
 ```
 
-Generate necessary local certificates by following the instructions in `certs/README.md`
+Generate necessary local certificates by following the instructions in `certs/README.md`.
+Once you run Historian locally for the first time with these certs, go to https://localhost:3001/repos/ping to tell the browser to trust your certificates (select Advanced > continue to unsafe site).
 
 And then mount it for development by running.
 

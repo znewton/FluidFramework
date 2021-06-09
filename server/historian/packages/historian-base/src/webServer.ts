@@ -4,7 +4,7 @@
  */
 
 import type { RequestListener } from "http";
-import { createServer, ServerOptions } from "spdy";
+import { createServer, ServerOptions, server as spdyServer } from "spdy";
 import type { IWebServer} from "@fluidframework/server-services-core";
 import { HttpServer, WebServer } from "@fluidframework/server-services-shared";
 
@@ -20,5 +20,14 @@ export class Http2WebServerFactory implements IHttp2WebServerFactory {
 
         // eslint-disable-next-line no-null/no-null
         return new WebServer(httpServer, null);
+    }
+}
+
+/**
+ * `spdy` exposes Response.push() for implementing HTTP/2-Push, but does not add the type to express.
+ */
+declare module "express-serve-static-core" {
+    export interface Response {
+        push(filename: string, options: spdyServer.PushOptions): any;
     }
 }

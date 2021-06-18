@@ -25,6 +25,7 @@ import { RouterliciousOrdererRestWrapper } from "./restWrapper";
 
 const defaultRouterliciousDriverPolicies: IRouterliciousDriverPolicies = {
     enablePrefetch: true,
+    enableWholeSummaryUpload: false,
 };
 
 /**

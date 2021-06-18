@@ -9,4 +9,10 @@ export interface IRouterliciousDriverPolicies {
      * Default: true
      */
     enablePrefetch: boolean;
+
+    /**
+     * Enable uploading entire summary tree as a IWholeSummaryPayload to storage.
+     * Default: false
+     */
+    enableWholeSummaryUpload: boolean;
 }

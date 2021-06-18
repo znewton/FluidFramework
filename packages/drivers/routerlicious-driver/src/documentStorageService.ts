@@ -23,9 +23,15 @@ import {
     ITree,
     IVersion,
 } from "@fluidframework/protocol-definitions";
-import { GitManager, ISummaryUploadManager, SummaryTreeUploadManager } from "@fluidframework/server-services-client";
+import {
+    GitManager,
+    ISummaryUploadManager,
+    SummaryTreeUploadManager,
+    WholeSummaryUploadManager,
+} from "@fluidframework/server-services-client";
 import { PerformanceEvent } from "@fluidframework/telemetry-utils";
 import { DocumentStorageServiceProxy, PrefetchDocumentStorageService } from "@fluidframework/driver-utils";
+import { IRouterliciousDriverPolicies } from "./policies";
 
 /**
  * Document access to underlying storage for routerlicious driver.
@@ -44,12 +50,14 @@ class DocumentStorageServiceCore implements IDocumentStorageService {
         private readonly id: string,
         private readonly manager: GitManager,
         private readonly logger: ITelemetryLogger,
-        public readonly policies: IDocumentStorageServicePolicies = {}) {
-        this.summaryUploadManager = new SummaryTreeUploadManager(
-            this.manager,
-            this.blobsShaCache,
-            this.getPreviousFullSnapshot.bind(this),
-        );
+        public readonly policies: IDocumentStorageServicePolicies = {},
+        driverPolicies?: IRouterliciousDriverPolicies) {
+        this.summaryUploadManager = driverPolicies?.enableWholeSummaryUpload
+            ? new WholeSummaryUploadManager(this.manager)
+            : new SummaryTreeUploadManager(
+                this.manager,
+                this.blobsShaCache,
+                this.getPreviousFullSnapshot.bind(this));
     }
 
     public async getSnapshotTree(version?: IVersion): Promise<ISnapshotTreeEx | null> {
@@ -190,8 +198,9 @@ export class DocumentStorageService extends DocumentStorageServiceProxy {
         id: string,
         manager: GitManager,
         logger: ITelemetryLogger,
-        policies: IDocumentStorageServicePolicies): IDocumentStorageService {
-        const storageService = new DocumentStorageServiceCore(id, manager, logger, policies);
+        policies: IDocumentStorageServicePolicies,
+        driverPolicies?: IRouterliciousDriverPolicies): IDocumentStorageService {
+        const storageService = new DocumentStorageServiceCore(id, manager, logger, policies, driverPolicies);
         if (policies.caching === LoaderCachingPolicy.Prefetch) {
             return new PrefetchDocumentStorageService(storageService);
         }
@@ -202,8 +211,9 @@ export class DocumentStorageService extends DocumentStorageServiceProxy {
         public readonly id: string,
         public manager: GitManager,
         logger: ITelemetryLogger,
-        policies: IDocumentStorageServicePolicies = {}) {
-        super(DocumentStorageService.loadInternalDocumentStorageService(id, manager, logger, policies));
+        policies: IDocumentStorageServicePolicies = {},
+        driverPolicies?: IRouterliciousDriverPolicies) {
+        super(DocumentStorageService.loadInternalDocumentStorageService(id, manager, logger, policies, driverPolicies));
     }
 
     public async getSnapshotTree(version?: IVersion): Promise<ISnapshotTreeEx | null> {

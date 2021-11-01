@@ -26,7 +26,16 @@ import { ISnapshotTreeWithBlobContents } from "./utils";
  */
 export class ContainerStorageAdapter implements IDocumentStorageService {
     private readonly blobContents: {[id: string]: ArrayBufferLike} = {};
+
+    public get disposed() {
+        return this.storageGetter().disposed;
+    }
+
     constructor(private readonly storageGetter: () => IDocumentStorageService) {}
+
+    public dispose() {
+        this.storageGetter().dispose();
+    }
 
     public loadSnapshotForRehydratingContainer(snapshotTree: ISnapshotTreeWithBlobContents) {
         this.getBlobContents(snapshotTree);
@@ -92,10 +101,20 @@ export class ContainerStorageAdapter implements IDocumentStorageService {
  * blobs in detached containers.
  */
 export class BlobOnlyStorage implements IDocumentStorageService {
+    private _disposed: boolean = false;
+
+    public get disposed() {
+        return this._disposed;
+    }
+
     constructor(
         private readonly blobStorage: IDetachedBlobStorage,
         private readonly logger: ITelemetryLogger,
     ) { }
+
+    public dispose() {
+        this._disposed = true;
+    }
 
     public async createBlob(content: ArrayBufferLike): Promise<ICreateBlobResponse> {
         return this.blobStorage.createBlob(content);

@@ -17,11 +17,10 @@ import {
     ITree,
     IVersion,
 } from "@fluidframework/protocol-definitions";
-import { IDisposable, ITelemetryLogger } from "@fluidframework/common-definitions";
+import { ITelemetryLogger } from "@fluidframework/common-definitions";
 import { runWithRetry } from "./retryUtils";
 
-export class RetryErrorsStorageAdapter implements IDocumentStorageService, IDisposable {
-    private _disposed = false;
+export class RetryErrorsStorageAdapter implements IDocumentStorageService {
     constructor(
         private readonly internalStorageService: IDocumentStorageService,
         private readonly logger: ITelemetryLogger,
@@ -31,9 +30,13 @@ export class RetryErrorsStorageAdapter implements IDocumentStorageService, IDisp
     public get policies(): IDocumentStorageServicePolicies | undefined {
         return this.internalStorageService.policies;
     }
-    public get disposed() {return this._disposed;}
+
+    public get disposed() {
+        return this.internalStorageService.disposed;
+    }
+
     public dispose() {
-        this._disposed = true;
+        this.internalStorageService.dispose();
     }
 
     public get repositoryUrl(): string {
@@ -91,7 +94,7 @@ export class RetryErrorsStorageAdapter implements IDocumentStorageService, IDisp
     }
 
     private checkStorageDisposed() {
-        if (this._disposed) {
+        if (this.internalStorageService.disposed) {
             throw new LoggingError("storageServiceDisposedCannotRetry", { canRetry: false });
         }
     }

@@ -180,6 +180,8 @@ export class OdspDocumentStorageService implements IDocumentStorageService {
     private firstVersionCall = true;
     private _snapshotSequenceNumber: number | undefined;
 
+    private _disposed: boolean = false;
+
     private readonly documentId: string;
     private readonly snapshotUrl: string | undefined;
     private readonly attachmentPOSTUrl: string | undefined;
@@ -197,6 +199,10 @@ export class OdspDocumentStorageService implements IDocumentStorageService {
     private readonly createBlobRateLimiter = new RateLimiter(1);
 
     private readonly blobCache = new BlobCache();
+
+    public get disposed(): boolean {
+        return this._disposed;
+    }
 
     public set ops(ops: api.ISequencedDocumentMessage[] | undefined) {
         assert(this._ops === undefined, 0x0a5 /* "Trying to set ops when they are already set!" */);
@@ -230,6 +236,10 @@ export class OdspDocumentStorageService implements IDocumentStorageService {
 
     public get repositoryUrl(): string {
         return "";
+    }
+
+    public dispose() {
+        this._disposed = true;
     }
 
     public async createBlob(file: ArrayBufferLike): Promise<api.ICreateBlobResponse> {

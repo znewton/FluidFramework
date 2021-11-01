@@ -26,11 +26,21 @@ import {
  *   callback should be provided when creating the storage service.
  */
 export class SnapshotStorageService extends FileSnapshotReader implements IDocumentStorageService {
+    private _disposed: boolean = false;
+
+    public get disposed() {
+        return this._disposed;
+    }
+
     public constructor(
         json: IFileSnapshot,
         private readonly snapshotCb: (snapshot: IFileSnapshot) => void,
     ) {
         super(json);
+    }
+
+    public dispose() {
+        this._disposed = true;
     }
 
     public async uploadSummaryWithContext(summary: ISummaryTree, context: ISummaryContext): Promise<string> {

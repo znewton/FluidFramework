@@ -78,6 +78,13 @@ export class DebugReplayController extends ReplayController implements IDebugger
     // returns if this controller should be used or function as a passthrough
     private shouldUseController: boolean | undefined;
 
+    private _disposed: boolean = false;
+    public get disposed() {return this._disposed;}
+
+    public dispose() {
+        this._disposed = true;
+    }
+
     public connectToUi(ui: IDebuggerUI): void {
         this.ui = ui;
     }

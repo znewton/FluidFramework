@@ -42,12 +42,20 @@ export class FileSnapshotReader extends ReadDocumentStorageServiceBase implement
     protected readonly commits: { [key: string]: ITree } = {};
     protected readonly trees: { [key: string]: ISnapshotTree } = {};
 
+    protected _disposed: boolean = false;
+
+    public get disposed() {return this._disposed;}
+
     public constructor(json: IFileSnapshot) {
         super();
         this.commits = json.commits;
 
         this.blobs = new Map<string, ArrayBufferLike>();
         this.docTree = buildSnapshotTree(json.tree.entries, this.blobs);
+    }
+
+    public dispose() {
+        this._disposed = true;
     }
 
     public async getVersions(

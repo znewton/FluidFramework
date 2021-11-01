@@ -11,8 +11,16 @@ import * as api from "@fluidframework/protocol-definitions";
  * Does not read/write anything.
  */
 export class NullBlobStorageService implements IDocumentStorageService {
+    private _disposed: boolean = false;
+
+    public get disposed() {return this._disposed;}
+
     public get repositoryUrl(): string {
         throw new Error("Invalid operation");
+    }
+
+    public dispose() {
+        this._disposed = true;
     }
 
     public async getSnapshotTree(version?: api.IVersion): Promise<api.ISnapshotTree | null> {

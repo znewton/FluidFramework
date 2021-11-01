@@ -35,6 +35,9 @@ export class ReplayControllerStatic extends ReplayController {
     private replayCurrent = 0;
     // Simulated delay interval for emitting the ops
 
+    private _disposed: boolean = false;
+    public get disposed() {return this._disposed;}
+
     /**
      * Helper class
      *
@@ -51,6 +54,10 @@ export class ReplayControllerStatic extends ReplayController {
             // There is no code in here to start with snapshot, thus we have to start with op #0.
             this.replayTo = 0;
         }
+    }
+
+    public dispose() {
+        this._disposed = true;
     }
 
     public async initStorage(documentService: IDocumentService) {

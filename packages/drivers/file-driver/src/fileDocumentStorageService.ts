@@ -30,8 +30,16 @@ const FileStorageVersionTreeIdUnused = "baad";
 export class FluidFetchReader extends ReadDocumentStorageServiceBase implements IDocumentStorageService {
     protected docTree: api.ISnapshotTree | null = null;
 
+    private _disposed: boolean = false;
+
+    public get disposed() {return this._disposed;}
+
     constructor(private readonly path: string, private readonly versionName?: string) {
         super();
+    }
+
+    public dispose() {
+        this._disposed = true;
     }
 
     /**

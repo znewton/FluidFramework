@@ -47,10 +47,16 @@ class ShreddedSummaryDocumentStorageService implements IDocumentStorageService {
     // The values of this cache is useless. We only need the keys. So we are always putting
     // empty strings as values.
     protected readonly blobsShaCache = new Map<string, string>();
+    private _disposed: boolean = false;
+    private readonly retriableGitManager: RetriableGitManager;
     private readonly summaryUploadManager: ISummaryUploadManager;
 
     public get repositoryUrl(): string {
         return "";
+    }
+
+    public get disposed() {
+        return this._disposed;
     }
 
     constructor(
@@ -58,11 +64,17 @@ class ShreddedSummaryDocumentStorageService implements IDocumentStorageService {
         protected readonly manager: GitManager,
         protected readonly logger: ITelemetryLogger,
         public readonly policies: IDocumentStorageServicePolicies = {}) {
+        this.retriableGitManager = new RetriableGitManager(manager, logger);
         this.summaryUploadManager = new SummaryTreeUploadManager(
-                new RetriableGitManager(manager, logger),
+                this.retriableGitManager,
                 this.blobsShaCache,
                 this.getPreviousFullSnapshot.bind(this),
             );
+    }
+
+    public dispose() {
+        this.retriableGitManager.dispose();
+        this._disposed = true;
     }
 
     public async getVersions(versionId: string, count: number): Promise<IVersion[]> {
@@ -195,11 +207,16 @@ class ShreddedSummaryDocumentStorageService implements IDocumentStorageService {
 const latestSnapshotId: string = "latest";
 
 class WholeSummaryDocumentStorageService implements IDocumentStorageService {
+    private _disposed: boolean = false;
     private readonly summaryUploadManager: ISummaryUploadManager;
     private firstVersionsCall: boolean = true;
 
     public get repositoryUrl(): string {
         return "";
+    }
+
+    public get disposed() {
+        return this._disposed;
     }
 
     constructor(
@@ -210,6 +227,10 @@ class WholeSummaryDocumentStorageService implements IDocumentStorageService {
         private readonly blobCache: ICache<ArrayBufferLike> = new InMemoryCache(),
         private readonly snapshotTreeCache: ICache<ISnapshotTree> = new InMemoryCache()) {
         this.summaryUploadManager = new WholeSummaryUploadManager(manager);
+    }
+
+    public dispose() {
+        this._disposed = true;
     }
 
     public async getVersions(versionId: string | null, count: number): Promise<IVersion[]> {

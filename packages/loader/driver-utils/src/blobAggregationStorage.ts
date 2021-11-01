@@ -210,6 +210,14 @@ export class BlobAggregationStorage extends SnapshotExtractor implements IDocume
         }
     }
 
+    public get disposed() {
+        return this.storage.disposed;
+    }
+
+    public dispose() {
+        this.storage.dispose();
+    }
+
     public async unpackSnapshot(snapshot: ISnapshotTree) {
         // SummarizerNodeWithGC.refreshLatestSummary can call it when this.loadedFromSummary === false
         // (I assumed after file was created)

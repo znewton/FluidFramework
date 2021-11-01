@@ -3,7 +3,6 @@
  * Licensed under the MIT License.
  */
 
-import { IDisposable } from "@fluidframework/common-definitions";
 import {
     IDocumentStorageService,
     ISummaryContext,
@@ -13,9 +12,9 @@ import {
     ISummaryTree,
 } from "@fluidframework/protocol-definitions";
 
-export class ProtocolTreeStorageService implements IDocumentStorageService, IDisposable {
+export class ProtocolTreeStorageService implements IDocumentStorageService {
     constructor(
-        private readonly internalStorageService: IDocumentStorageService & IDisposable,
+        private readonly internalStorageService: IDocumentStorageService,
         private readonly generateProtocolTree: () => ISummaryTree,
     ) {
     }

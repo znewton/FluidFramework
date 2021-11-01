@@ -14,6 +14,7 @@ import * as api from "@fluidframework/protocol-definitions";
  * Partial implementation of IDocumentStorageService
  */
 export abstract class ReadDocumentStorageServiceBase implements IDocumentStorageService {
+    public abstract dispose(): void;
     public abstract getVersions(versionId: string, count: number): Promise<api.IVersion[]>;
     public abstract getSnapshotTree(version?: api.IVersion): Promise<api.ISnapshotTree | null>;
     public abstract readBlob(blobId: string): Promise<ArrayBufferLike>;

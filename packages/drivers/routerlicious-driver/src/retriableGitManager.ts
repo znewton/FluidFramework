@@ -11,14 +11,21 @@ import {
     IWholeSummaryPayload,
     IWriteSummaryResponse,
 } from "@fluidframework/server-services-client";
-import { runWithRetry } from "@fluidframework/driver-utils";
-import { ITelemetryLogger } from "@fluidframework/common-definitions";
+import { GenericNetworkError, runWithRetry } from "@fluidframework/driver-utils";
+import { IDisposable, ITelemetryLogger } from "@fluidframework/common-definitions";
 
-export class RetriableGitManager implements IGitManager {
+export class RetriableGitManager implements IGitManager, IDisposable {
+    private _disposed: boolean = false;
+
+    public get disposed() {return this._disposed;}
     constructor(
         private readonly internalGitManager: IGitManager,
         private readonly logger: ITelemetryLogger,
     ) {
+    }
+
+    public dispose() {
+        this._disposed = true;
     }
 
     public async getHeader(id: string, sha: string): Promise<protocol.ISnapshotTree> {
@@ -154,12 +161,24 @@ export class RetriableGitManager implements IGitManager {
         );
     }
 
+    private checkDisposed() {
+        if (this._disposed) {
+            throw new GenericNetworkError(
+                "r11sDisposedStorage",
+                "storageServiceDisposedCannotRetry",
+                false);
+        }
+        return undefined;
+    }
+
     private async runWithRetry<T>(api: () => Promise<T>, callName: string): Promise<T> {
         return runWithRetry(
             api,
             callName,
             this.logger,
-            {}, // progress
+            {
+                retry: () => this.checkDisposed(),
+            },
         );
     }
 }

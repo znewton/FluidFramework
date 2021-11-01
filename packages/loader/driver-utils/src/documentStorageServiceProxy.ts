@@ -32,7 +32,14 @@ export class DocumentStorageServiceProxy implements IDocumentStorageService {
         return this.internalStorageService.repositoryUrl;
     }
 
+    public get disposed() {
+        return this.internalStorageService.disposed;
+    }
     constructor(protected readonly internalStorageService: IDocumentStorageService) { }
+
+    public dispose() {
+        this.internalStorageService.dispose();
+    }
 
     public async getSnapshotTree(version?: IVersion): Promise<ISnapshotTree | null> {
         return this.internalStorageService.getSnapshotTree(version);

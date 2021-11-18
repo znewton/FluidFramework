@@ -13,6 +13,7 @@ import * as trees from "./git/trees";
 import * as repositoryCommits from "./repository/commits";
 import * as contents from "./repository/contents";
 import * as headers from "./repository/headers";
+import * as summaries from "./summaries";
 
 export interface IRoutes {
     git: {
@@ -27,6 +28,7 @@ export interface IRoutes {
         contents: Router;
         headers: Router;
     };
+    summaries: Router;
 }
 
 export function create(store: nconf.Provider): Router {
@@ -43,6 +45,7 @@ export function create(store: nconf.Provider): Router {
             contents: contents.create(store),
             headers: headers.create(store),
         },
+        summaries: summaries.create(store),
     };
 
     const router: Router = Router();
@@ -54,6 +57,7 @@ export function create(store: nconf.Provider): Router {
     router.use(apiRoutes.repository.commits);
     router.use(apiRoutes.repository.contents);
     router.use(apiRoutes.repository.headers);
+    router.use(apiRoutes.summaries);
 
     return router;
 }

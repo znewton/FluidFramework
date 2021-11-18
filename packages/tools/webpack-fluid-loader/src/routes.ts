@@ -71,13 +71,13 @@ export const after = (app: express.Application, server: WebpackDevServer, baseDi
 
     if (options.mode === "docker" || options.mode === "r11s" || options.mode === "tinylicious") {
         options.bearerSecret = options.bearerSecret || config.get("fluid:webpack:bearerSecret");
+        options.enableWholeSummaryUpload =
+            options.enableWholeSummaryUpload ?? config.get("fluid:webpack:enableWholeSummaryUpload") ?? false;
+        if (typeof options.enableWholeSummaryUpload === "string") {
+            options.enableWholeSummaryUpload = options.enableWholeSummaryUpload === "true";
+        }
         if (options.mode !== "tinylicious") {
             options.tenantId = options.tenantId || config.get("fluid:webpack:tenantId") || "fluid";
-            options.enableWholeSummaryUpload =
-                options.enableWholeSummaryUpload ?? config.get("fluid:webpack:enableWholeSummaryUpload") ?? false;
-            if (typeof options.enableWholeSummaryUpload === "string") {
-                options.enableWholeSummaryUpload = options.enableWholeSummaryUpload === "true";
-            }
             if (options.mode === "docker") {
                 options.tenantSecret = options.tenantSecret
                     || config.get("fluid:webpack:docker:tenantSecret")

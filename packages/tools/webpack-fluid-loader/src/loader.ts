@@ -72,6 +72,7 @@ export interface ITinyliciousRouteOptions extends IBaseRouteOptions {
     mode: "tinylicious";
     bearerSecret?: string;
     tinyliciousPort?: number;
+    enableWholeSummaryUpload?: boolean;
 }
 
 export interface IOdspRouteOptions extends IBaseRouteOptions {

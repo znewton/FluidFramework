@@ -56,9 +56,10 @@ export function getDocumentServiceFactory(
         new RouterliciousDocumentServiceFactory(
             routerliciousTokenProvider,
             {
-                enableWholeSummaryUpload: options.mode === "r11s" || options.mode === "docker"
-                    ? options.enableWholeSummaryUpload
-                    : undefined,
+                enableWholeSummaryUpload:
+                    options.mode === "r11s" || options.mode === "docker" || options.mode === "tinylicious"
+                        ? options.enableWholeSummaryUpload
+                        : undefined,
             }),
     ]);
 }

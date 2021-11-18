@@ -5,7 +5,6 @@
 
 import { ICreateBlobParams, ICreateTreeParams } from "@fluidframework/gitresources";
 import {
-    IGetRefParamsExternal,
     IWholeFlatSummary,
     IWholeSummaryPayload,
     IWriteSummaryResponse,
@@ -13,52 +12,50 @@ import {
 } from "@fluidframework/server-services-client";
 import { WholeSummaryReadGitManager, WholeSummaryWriteGitManager } from "@fluidframework/server-services-shared";
 import { Router } from "express";
-import { Provider } from "nconf";
-import { IExternalStorageManager } from "../externalStorageManager";
-import { getReadParams, RepositoryManager } from "../utils";
-/* eslint-disable import/no-internal-modules */
+import nconf from "nconf";
+import winston from "winston";
 import { createBlob, getBlob } from "./git/blobs";
-import { createTree, getTreeRecursive } from "./git/trees";
+import { createTree, getTree } from "./git/trees";
 import { getCommits } from "./repository/commits";
-/* eslint-enable import/no-internal-modules */
-import { handleResponse } from "./utils";
+import { handleResponse, parseAuthToken } from "./utils";
 
 export async function getSummary(
-    repoManager: RepositoryManager,
-    owner: string,
-    repo: string,
+    store: nconf.Provider,
+    tenantId: string,
+    authorizationHeader: string,
     sha: string,
     documentId: string,
-    externalStorageReadParams: IGetRefParamsExternal | undefined,
-    externalStorageManager: IExternalStorageManager): Promise<IWholeFlatSummary> {
+    useCache: boolean): Promise<IWholeFlatSummary> {
     const getLatestDocumentVersion = async () => {
         const versions = await getCommits(
-            repoManager,
-            owner,
-            repo,
+            store,
+            tenantId,
+            authorizationHeader,
             documentId,
             1,
-            externalStorageReadParams,
-            externalStorageManager,
         );
         if (!versions || versions.length === 0) {
             throw new NetworkError(404, "No latest version found for document");
         }
+        winston.info("LATEST VERSION", { documentId, latestVersion: versions[0].commit.tree.sha });
         return versions[0].commit.tree.sha;
     };
     const readBlob = async (blobSha: string) => {
         return getBlob(
-            repoManager,
-            owner,
-            repo,
-            blobSha);
+            store,
+            tenantId,
+            authorizationHeader,
+            blobSha,
+            useCache);
     };
     const readTreeRecursive = async (treeSha: string) => {
-        return getTreeRecursive(
-            repoManager,
-            owner,
-            repo,
-            treeSha);
+        return getTree(
+            store,
+            tenantId,
+            authorizationHeader,
+            treeSha,
+            true,
+            useCache);
     };
     const wholeSummaryReadGitManager = new WholeSummaryReadGitManager(
         getLatestDocumentVersion,
@@ -69,24 +66,24 @@ export async function getSummary(
 }
 
 export async function createSummary(
-    repoManager: RepositoryManager,
-    owner: string,
-    repo: string,
+    store: nconf.Provider,
+    tenantId: string,
+    authorizationHeader: string,
     payload: IWholeSummaryPayload): Promise<IWriteSummaryResponse> {
     const writeBlob = async (blob: ICreateBlobParams) => {
         const blobResponse = await createBlob(
-            repoManager,
-            owner,
-            repo,
+            store,
+            tenantId,
+            authorizationHeader,
             blob,
         );
         return blobResponse.sha;
     };
     const writeTree = async (tree: ICreateTreeParams) => {
         const treeHandle = await createTree(
-            repoManager,
-            owner,
-            repo,
+            store,
+            tenantId,
+            authorizationHeader,
             tree,
         );
         return treeHandle.sha;
@@ -97,41 +94,42 @@ export async function createSummary(
 }
 
 export async function deleteSummary(
-    repoManager: RepositoryManager,
-    owner: string,
-    repo: string,
+    store: nconf.Provider,
+    tenantId: string,
+    authorizationHeader: string,
     softDelete: boolean): Promise<boolean> {
     throw new NetworkError(501, "Not Implemented");
 }
 
-export function create(
-    store: Provider,
-    repoManager: RepositoryManager,
-    externalStorageManager: IExternalStorageManager,
-): Router {
+export function create(store: nconf.Provider): Router {
     const router: Router = Router();
 
     /**
      * Retrieves a summary.
      * If sha is "latest", returns latest summary for owner/repo.
      */
-    router.get("/repos/:owner/:repo/git/summaries/:sha", (request, response) => {
-        const storageRoutingId: string = request.get("Storage-Routing-Id");
-        const [,documentId] = storageRoutingId.split(":");
-        if (!documentId) {
+     router.get("/repos/:ignored?/:tenantId/git/summaries/:sha", (request, response) => {
+        const useCache = !("disableCache" in request.query);
+        const tenantId = request.params.tenantId;
+        const authorizationHeader: string = request.get("Authorization");
+        if (!authorizationHeader) {
+            handleResponse(Promise.reject(new NetworkError(400, "Missing Authorization header")), response);
+            return;
+        }
+        const authToken = parseAuthToken(tenantId, authorizationHeader);
+        if (!authToken || !authToken.documentId) {
             handleResponse(Promise.reject(new NetworkError(400, "Invalid Storage-Routing-Id header")), response);
             return;
         }
+        winston.info("GET SUMMARY", { tenantId, documentId: authToken.documentId, sha: request.params.sha});
         handleResponse(
             getSummary(
-                repoManager,
-                request.params.owner,
-                request.params.repo,
+                store,
+                tenantId,
+                authorizationHeader,
                 request.params.sha,
-                documentId,
-                getReadParams(request.query?.config),
-                externalStorageManager,
-            ),
+                authToken.documentId,
+                useCache),
             response,
         );
     });
@@ -139,11 +137,16 @@ export function create(
     /**
      * Creates a new summary.
      */
-    router.post("/repos/:owner/:repo/git/summaries", (request, response) => {
+    router.post("/repos/:ignored?/:tenantId/git/summaries", (request, response) => {
         const wholeSummaryPayload: IWholeSummaryPayload = request.body;
         handleResponse(
-            createSummary(repoManager, request.params.owner, request.params.repo, wholeSummaryPayload),
+            createSummary(
+                store,
+                request.params.tenantId,
+                request.get("Authorization"),
+                wholeSummaryPayload),
             response,
+            undefined,
             201,
         );
     });
@@ -152,10 +155,14 @@ export function create(
      * Deletes the latest summary for the owner/repo.
      * If header Soft-Delete="true", only flags summary as deleted.
      */
-    router.delete("/repos/:owner/:repo/git/summaries/:sha", (request, response) => {
+    router.delete("/repos/:ignored?/:tenantId/git/summaries/:sha", (request, response) => {
         const softDelete = request.get("Soft-Delete")?.toLowerCase() === "true";
         handleResponse(
-            deleteSummary(repoManager, request.params.owner, request.params.repo, softDelete),
+            deleteSummary(
+                store,
+                request.params.tenantId,
+                request.get("Authorization"),
+                softDelete),
             response,
         );
     });

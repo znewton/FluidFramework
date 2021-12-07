@@ -23,6 +23,8 @@ export function handleResponse<T>(
         (result) => {
             if (cache) {
                 response.setHeader("Cache-Control", "public, max-age=31536000");
+            } else {
+                response.setHeader("Cache-Control", "no-store, max-age=0");
             }
 
             response.status(status).json(result);

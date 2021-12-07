@@ -62,7 +62,9 @@ export async function getSummary(
         readBlob,
         readTreeRecursive,
     );
-    return wholeSummaryReadGitManager.readSummary(sha);
+    const summary = await wholeSummaryReadGitManager.readSummary(sha);
+    summary.trees[0].sequenceNumber = undefined;
+    return summary;
 }
 
 export async function createSummary(
@@ -111,6 +113,7 @@ export function create(store: nconf.Provider): Router {
      router.get("/repos/:ignored?/:tenantId/git/summaries/:sha", (request, response) => {
         const useCache = !("disableCache" in request.query);
         const tenantId = request.params.tenantId;
+        const sha = request.params.sha;
         const authorizationHeader: string = request.get("Authorization");
         if (!authorizationHeader) {
             handleResponse(Promise.reject(new NetworkError(400, "Missing Authorization header")), response);
@@ -121,16 +124,17 @@ export function create(store: nconf.Provider): Router {
             handleResponse(Promise.reject(new NetworkError(400, "Invalid Storage-Routing-Id header")), response);
             return;
         }
-        winston.info("GET SUMMARY", { tenantId, documentId: authToken.documentId, sha: request.params.sha});
+        winston.info("GET SUMMARY", { tenantId, documentId: authToken.documentId, sha});
         handleResponse(
             getSummary(
                 store,
                 tenantId,
                 authorizationHeader,
-                request.params.sha,
+                sha,
                 authToken.documentId,
                 useCache),
             response,
+            sha !== "latest" && useCache,
         );
     });
 

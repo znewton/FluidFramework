@@ -82,8 +82,14 @@ export class RouterliciousRestWrapper extends RestWrapper {
                 }, axiosError.response!.data.retryAfter * 1000));
             }
 
+            const retryAfterSec = Number.parseInt(axiosError.response?.headers["retry-after"], 10);
             // Allow anything else to be handled upstream
-            throwR11sNetworkError("r11sAxiosError", axiosError.message, axiosError.response?.status);
+            throwR11sNetworkError(
+                "r11sAxiosError",
+                axiosError.message,
+                axiosError.response?.status,
+                Number.isNaN(retryAfterSec) ? undefined : retryAfterSec * 1000,
+            );
         }
     }
 

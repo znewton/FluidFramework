@@ -59,16 +59,20 @@ export function createR11sNetworkError(
             // error message, "Network Error".
             return new GenericNetworkError(
                 fluidErrorCode, errorMessage, errorMessage === "Network Error", { statusCode });
-        case 401:
-        case 403:
+        case 401: // Unauthorized. R11sRestWrapper will retry once internally after refreshing token.
+        case 403: // Forbidden.
             return new AuthorizationError(fluidErrorCode, errorMessage, undefined, undefined, { statusCode });
-        case 404:
+        case 404: // Not Found.
             return new NonRetryableError(
                 fluidErrorCode, errorMessage, R11sErrorType.fileNotFoundOrAccessDeniedError, { statusCode });
         case 429:
             return createGenericNetworkError(
                 fluidErrorCode, errorMessage, true, retryAfterMs, { statusCode });
-        case 500:
+        case 503: // Service Unavailable. Can have a Retry-After header.
+            return createGenericNetworkError(fluidErrorCode, errorMessage, true, retryAfterMs, { statusCode });
+        case 500: // Internal Server Error.
+        case 502: // Bad Gateway.
+        case 504: // Gateway Timeout.
             return new GenericNetworkError(fluidErrorCode, errorMessage, true, { statusCode });
         default:
             return createGenericNetworkError(

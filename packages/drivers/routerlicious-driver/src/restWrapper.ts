@@ -11,12 +11,12 @@ import {
     RestLessClient,
     RestWrapper,
 } from "@fluidframework/server-services-client";
-import fetch from "cross-fetch";
 import type { AxiosRequestConfig, AxiosRequestHeaders } from "axios";
 import safeStringify from "json-stringify-safe";
 import { v4 as uuid } from "uuid";
 import { throwR11sNetworkError } from "./errorUtils";
 import { ITokenProvider } from "./tokens";
+import { fetch } from "./fetch";
 
 type AuthorizationHeaderGetter = (refresh?: boolean) => Promise<string | undefined>;
 

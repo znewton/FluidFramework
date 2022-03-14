@@ -14,6 +14,10 @@
   "main": "dist/index.js",
   "module": "lib/index.js",
   "types": "dist/index.d.ts",
+  "browser": {
+    "./dist/fetch.js": "./dist/fetchBrowser.js",
+    "./lib/fetch.js": "./lib/fetchBrowser.js"
+  },
   "scripts": {
     "build": "npm run build:genver && concurrently npm:build:compile npm:lint && npm run build:docs",
     "build:commonjs": "npm run tsc && npm run build:test",

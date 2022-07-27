@@ -122,6 +122,7 @@ export function create(
         allowEIO3: true,
         // Indicates whether a connection should use compression
         perMessageDeflate: socketIoConfig?.perMessageDeflate ?? true,
+        maxHttpBufferSize: socketIoConfig?.maxHttpBufferSize ?? 1e6,
         // Enable long-polling as a fallback
         transports: ["websocket", "polling"],
         cors: {

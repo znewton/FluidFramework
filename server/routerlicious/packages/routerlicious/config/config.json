@@ -106,7 +106,8 @@
         },
         "enforceServerGeneratedDocumentId": false,
         "socketIo": {
-            "perMessageDeflate": true
+            "perMessageDeflate": true,
+            "maxHttpBufferSize": 1e6
         }
     },
     "client": {

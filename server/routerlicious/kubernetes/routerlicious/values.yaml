@@ -44,6 +44,7 @@ alfred:
   enforceServerGeneratedDocumentId: false
   socketIo:
     perMessageDeflate: true
+    maxHttpBufferSize: 1000000
 storage:
   enableWholeSummaryUpload: false
   storageUrl: storage_url

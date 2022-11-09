@@ -62,9 +62,9 @@ export class DocumentDeltaStorageService implements IDocumentDeltaStorageService
         this.logtailSha = undefined;
         if (opsFromLogTail.length > 0) {
             const messages = opsFromLogTail.filter((op) =>
-                op.sequenceNumber >= from,
+                op.sequenceNumber >= from && op.sequenceNumber < to,
             );
-            if (messages.length > 0) {
+            if (messages.length > 0 && messages[0].sequenceNumber === from) {
                 return { messages, partialResult: true };
             }
         }

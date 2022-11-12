@@ -251,9 +251,9 @@
     },
     "worker": {
         "alfredUrl": "http://alfred:3003",
-        "deltaStreamUrl": "http://localhost:3003",
-        "serverUrl": "http://localhost:3003",
-        "blobStorageUrl": "http://localhost:3001",
+        "deltaStreamUrl": "http://docker.local:3003",
+        "serverUrl": "http://docker.local:3003",
+        "blobStorageUrl": "http://docker.local:3001",
         "internalBlobStorageUrl": "http://historian:3000",
         "permission": [
             "snapshot",
@@ -272,7 +272,7 @@
             "_id": "fluid",
             "key": "create-new-tenants-if-going-to-production",
             "storage": {
-                "historianUrl": "http://localhost:3001",
+                "historianUrl": "http://docker.local:3001",
                 "internalHistorianUrl": "http://historian:3000",
                 "url": "http://gitrest:3000",
                 "owner": "fluid",
@@ -283,7 +283,7 @@
             "_id": "github",
             "key": "create-new-tenants-if-going-to-production",
             "storage": {
-                "historianUrl": "http://localhost:3001",
+                "historianUrl": "http://docker.local:3001",
                 "internalHistorianUrl": "http://historian:3000",
                 "url": "https://api.github.com",
                 "owner": "gitrepoowner",
@@ -298,7 +298,7 @@
             "_id": "local",
             "key": "create-new-tenants-if-going-to-production",
             "storage": {
-                "historianUrl": "http://localhost:3001",
+                "historianUrl": "http://docker.local:3001",
                 "internalHistorianUrl": "http://historian:3000",
                 "url": "http://gitrest:3000",
                 "owner": "prague",
@@ -306,7 +306,7 @@
             },
             "orderer": {
                 "type": "memory",
-                "url": "http://localhost:3003"
+                "url": "http://docker.local:3003"
             }
         }
     ]

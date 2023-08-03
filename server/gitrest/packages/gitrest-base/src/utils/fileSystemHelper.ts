@@ -4,6 +4,7 @@
  */
 
 import fs from "fs";
+import { NetworkError, isNetworkError } from "@fluidframework/server-services-client";
 
 export const packedRefsFileName = "packed-refs";
 
@@ -39,6 +40,10 @@ export const SystemErrors: Record<string, ISystemError> = {
 		code: "ENOTEMPTY",
 		description: "Directory not empty",
 	},
+	EFBIG: {
+		code: "EFBIG",
+		description: "File too large",
+	},
 	UNKNOWN: {
 		code: "UNKNOWN",
 		description: "Unknown error",
@@ -54,6 +59,47 @@ export class FilesystemError extends Error {
 		super(message ? `${err.description}: ${message}` : err.description);
 		this.name = "FilesystemError";
 	}
+}
+
+export function isFilesystemError(obj: unknown): obj is FilesystemError {
+	return (
+		obj !== undefined &&
+		(obj as FilesystemError).name === "FilesystemError" &&
+		typeof (obj as FilesystemError).code === "string"
+	);
+}
+
+function convertFilesystemErrorToNetworkError(error: FilesystemError): NetworkError {
+	switch (error.code) {
+		case "EFBIG":
+			return new NetworkError(413, error.message);
+		case "ENOENT":
+			return new NetworkError(404, error.message);
+		case "EEXIST":
+		case "EINVAL":
+		case "EISDIR":
+		case "ENOTDIR":
+		case "ENOTEMPTY":
+			return new NetworkError(400, error.message);
+		case "UNKNOWN":
+		default:
+			return new NetworkError(500, "Internal System Error");
+	}
+}
+
+export function convertErrorToNetworkError(error: unknown): NetworkError {
+	if (isNetworkError(error)) {
+		return error;
+	}
+	if (isFilesystemError(error)) {
+		return convertFilesystemErrorToNetworkError(error);
+	}
+	const systemError = SystemErrors[(error as any)?.code];
+	if (systemError) {
+		const fileSystemError = new FilesystemError(systemError);
+		return convertFilesystemErrorToNetworkError(fileSystemError);
+	}
+	return new NetworkError(500, "Internal Service Error");
 }
 
 /**

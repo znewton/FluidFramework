@@ -9,7 +9,7 @@ import { parse } from "path";
 import { Params } from "express-serve-static-core";
 import { getParam } from "@fluidframework/server-services-utils";
 import { ITokenClaims } from "@fluidframework/protocol-definitions";
-import { NetworkError } from "@fluidframework/server-services-client";
+import { NetworkError, isNetworkError } from "@fluidframework/server-services-client";
 import { Lumberjack } from "@fluidframework/server-services-telemetry";
 import { decode } from "jsonwebtoken";
 import winston from "winston";
@@ -112,18 +112,17 @@ export function getRequestErrorTranslator(
 ): (error: any) => never {
 	const standardLogErrorMessage = `[${method}] Request to [${url}] failed`;
 	const requestErrorTranslator = (error: any): never => {
-		if (typeof error === "object" && error instanceof Error && error.name === "NetworkError") {
+		if (isNetworkError(error)) {
 			// BasicRestWrapper throws NetworkErrors that describe the error details associated with the network call.
 			// Here, we log information associated with the error for debugging purposes, and re-throw.
-			const networkError = error as NetworkError;
 			winston.error(
-				`${standardLogErrorMessage}: [statusCode: ${networkError.code}], [details: ${
-					safeStringify(networkError.details) ?? "undefined"
+				`${standardLogErrorMessage}: [statusCode: ${error.code}], [details: ${
+					safeStringify(error.details) ?? "undefined"
 				}]`,
 			);
 			Lumberjack.error(
-				`${standardLogErrorMessage}: [statusCode: ${networkError.code}], [details: ${
-					safeStringify(networkError.details) ?? "undefined"
+				`${standardLogErrorMessage}: [statusCode: ${error.code}], [details: ${
+					safeStringify(error.details) ?? "undefined"
 				}]`,
 				lumberProperties,
 			);

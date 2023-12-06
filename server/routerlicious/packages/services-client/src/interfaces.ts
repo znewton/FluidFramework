@@ -50,4 +50,9 @@ export interface ISession {
 	 * Activity time window is defined by `DefaultServiceConfiguration.documentLambda.partitionActivityTimeout`.
 	 */
 	isSessionActive: boolean;
+	/**
+	 * A unique identifier for the session.
+	 * This is used to correlate the session across multiple requests and services services.
+	 */
+	sessionCorrelationId: string;
 }

@@ -10,6 +10,7 @@ import { IClient, IConnect } from "@fluidframework/protocol-definitions";
 import type { io as SocketIOClientStatic } from "socket.io-client";
 import { errorObjectFromSocketError, IR11sSocketError } from "./errorUtils";
 import { pkgVersion as driverVersion } from "./packageVersion";
+import { IExtendedSession } from "./definitions";
 
 const protocolVersions = ["^0.4.0", "^0.3.0", "^0.2.0", "^0.1.0"];
 
@@ -27,6 +28,10 @@ export class R11sDocumentDeltaConnection extends DocumentDeltaConnection {
 		logger: ITelemetryLoggerExt,
 		timeoutMs = 20000,
 		enableLongPollingDowngrade = true,
+		sessionIds: Pick<IExtendedSession, "clientCorrelationId" | "sessionCorrelationId"> = {
+			clientCorrelationId: undefined,
+			sessionCorrelationId: undefined,
+		},
 	): Promise<IDocumentDeltaConnection> {
 		const socket = io(url, {
 			query: {
@@ -46,9 +51,7 @@ export class R11sDocumentDeltaConnection extends DocumentDeltaConnection {
 			tenantId,
 			token, // Token is going to indicate tenant level information, etc...
 			versions: protocolVersions,
-			relayUserAgent: [client.details.environment, ` driverVersion:${driverVersion}`].join(
-				";",
-			),
+			relayUserAgent: this.buildRelayUserAgent(client, sessionIds),
 		};
 
 		const deltaConnection = new R11sDocumentDeltaConnection(
@@ -72,5 +75,25 @@ export class R11sDocumentDeltaConnection extends DocumentDeltaConnection {
 		return canRetry && Number.isInteger(error?.code) && typeof error?.message === "string"
 			? errorObjectFromSocketError(error as IR11sSocketError, handler)
 			: super.createErrorObject(handler, error, canRetry);
+	}
+
+	private static buildRelayUserAgent(
+		client: IClient,
+		sessionIds: Pick<IExtendedSession, "clientCorrelationId" | "sessionCorrelationId"> = {
+			clientCorrelationId: undefined,
+			sessionCorrelationId: undefined,
+		},
+	): string {
+		const relayUserAgent = [`driverVersion:${driverVersion}`];
+		if (client.details.environment !== undefined) {
+			relayUserAgent.push(client.details.environment);
+		}
+		if (sessionIds.clientCorrelationId !== undefined) {
+			relayUserAgent.push(sessionIds.clientCorrelationId);
+		}
+		if (sessionIds.sessionCorrelationId !== undefined) {
+			relayUserAgent.push(sessionIds.sessionCorrelationId);
+		}
+		return relayUserAgent.join(";");
 	}
 }

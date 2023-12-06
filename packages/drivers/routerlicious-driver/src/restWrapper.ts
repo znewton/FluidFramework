@@ -25,6 +25,7 @@ import { RouterliciousErrorTypes, throwR11sNetworkError } from "./errorUtils";
 import { ITokenProvider, ITokenResponse } from "./tokens";
 import { pkgVersion as driverVersion } from "./packageVersion";
 import { QueryStringType, RestWrapper } from "./restWrapperBase";
+import { IExtendedSession } from "./definitions";
 
 type AuthorizationHeaderGetter = (token: ITokenResponse) => string;
 export type TokenFetcher = (refresh?: boolean) => Promise<ITokenResponse>;
@@ -88,6 +89,8 @@ export function getPropsToLogFromResponse(headers: {
 	// certain characters in headers including '-'
 	const headersToLog: LoggingHeader[] = [
 		{ headerName: CorrelationIdHeaderName, logName: "requestCorrelationId" },
+		{ headerName: "x-client-correlation-id", logName: "clientCorrelationId" },
+		{ headerName: "x-session-correlation-id", logName: "serviceSessionCorrelationId" },
 		{ headerName: "content-encoding", logName: "contentEncoding" },
 		{ headerName: "content-type", logName: "contentType" },
 	];
@@ -107,6 +110,8 @@ export function getPropsToLogFromResponse(headers: {
 export class RouterliciousRestWrapper extends RestWrapper {
 	private readonly restLess = new RestLessClient();
 	private token: ITokenResponse | undefined;
+	private clientCorrelationId: string | undefined;
+	private sessionCorrelationId: string | undefined;
 
 	constructor(
 		logger: ITelemetryLoggerExt,
@@ -234,7 +239,18 @@ export class RouterliciousRestWrapper extends RestWrapper {
 			// NOTE: If this.authorizationHeader is undefined, should "Authorization" be removed entirely?
 			Authorization: this.getAuthorizationHeader(token),
 		};
+		if (this.clientCorrelationId !== undefined) {
+			headers["x-client-correlation-id"] = this.clientCorrelationId;
+		}
+		if (this.sessionCorrelationId !== undefined) {
+			headers["x-session-correlation-id"] = this.sessionCorrelationId;
+		}
 		return headers;
+	}
+
+	public setSessionIds(clientCorrelationId?: string, sessionCorrelationId?: string) {
+		this.clientCorrelationId = clientCorrelationId;
+		this.sessionCorrelationId = sessionCorrelationId;
 	}
 
 	public async getToken(): Promise<ITokenResponse> {
@@ -283,6 +299,7 @@ export class RouterliciousStorageRestWrapper extends RouterliciousRestWrapper {
 		useRestLess: boolean,
 		baseurl?: string,
 		initialTokenP?: Promise<ITokenResponse>,
+		session?: IExtendedSession,
 	): Promise<RouterliciousStorageRestWrapper> {
 		const defaultQueryString = {
 			token: `${fromUtf8ToBase64(tenantId)}`,
@@ -308,6 +325,7 @@ export class RouterliciousStorageRestWrapper extends RouterliciousRestWrapper {
 			initialTokenP,
 			defaultQueryString,
 		);
+		restWrapper.setSessionIds(session?.clientCorrelationId, session?.sessionCorrelationId);
 
 		return restWrapper;
 	}
@@ -343,6 +361,7 @@ export class RouterliciousOrdererRestWrapper extends RouterliciousRestWrapper {
 		useRestLess: boolean,
 		baseurl?: string,
 		initialTokenP?: Promise<ITokenResponse>,
+		session?: IExtendedSession,
 	): Promise<RouterliciousOrdererRestWrapper> {
 		const getAuthorizationHeader: AuthorizationHeaderGetter = (
 			token: ITokenResponse,
@@ -359,6 +378,7 @@ export class RouterliciousOrdererRestWrapper extends RouterliciousRestWrapper {
 			baseurl,
 			initialTokenP,
 		);
+		restWrapper.setSessionIds(session?.clientCorrelationId, session?.sessionCorrelationId);
 
 		return restWrapper;
 	}

@@ -38,7 +38,7 @@ import {
 import { parseFluidUrl, replaceDocumentIdInPath, getDiscoveredFluidResolvedUrl } from "./urlUtils";
 import { ICache, InMemoryCache, NullCache } from "./cache";
 import { pkgVersion as driverVersion } from "./packageVersion";
-import { ISnapshotTreeVersion } from "./definitions";
+import { IExtendedSession, ISnapshotTreeVersion } from "./definitions";
 import { INormalizedWholeSnapshot } from "./contracts";
 
 const maximumSnapshotCacheDurationMs: FiveDaysMs = 432_000_000; // 5 days in ms
@@ -326,6 +326,8 @@ export class RouterliciousDocumentServiceFactory implements IDocumentServiceFact
 			);
 		}
 
+		// @TODO: Remove the cast when no need to support back-compat
+		const extendedSession = session as IExtendedSession;
 		const storageRestWrapper = await RouterliciousStorageRestWrapper.load(
 			tenantId,
 			storageTokenFetcher,
@@ -334,6 +336,12 @@ export class RouterliciousDocumentServiceFactory implements IDocumentServiceFact
 			this.driverPolicies.enableRestLess,
 			storageUrl,
 			storageTokenP,
+			extendedSession,
+		);
+
+		ordererRestWrapper.setSessionIds(
+			extendedSession.clientCorrelationId,
+			extendedSession.sessionCorrelationId,
 		);
 
 		const documentStorageServicePolicies: IDocumentStorageServicePolicies = {
@@ -363,6 +371,7 @@ export class RouterliciousDocumentServiceFactory implements IDocumentServiceFact
 			storageRestWrapper,
 			storageTokenFetcher,
 			ordererTokenFetcher,
+			extendedSession,
 		);
 	}
 }

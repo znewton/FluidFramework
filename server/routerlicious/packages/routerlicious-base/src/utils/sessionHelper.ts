@@ -6,6 +6,7 @@
 import { ISession, NetworkError } from "@fluidframework/server-services-client";
 import { IDocument, runWithRetry, IDocumentRepository } from "@fluidframework/server-services-core";
 import { getLumberBaseProperties, Lumberjack } from "@fluidframework/server-services-telemetry";
+import { v4 as uuid } from "uuid";
 
 const defaultSessionStickinessDurationMs = 60 * 60 * 1000; // 60 minutes
 
@@ -29,6 +30,7 @@ async function createNewSession(
 		deltaStreamUrl,
 		isSessionAlive: true,
 		isSessionActive: false,
+		sessionCorrelationId: uuid(),
 	};
 	// if undefined and added directly to the session object - will be serialized as null in mongo which is undesirable
 	if (messageBrokerId) {
@@ -86,6 +88,7 @@ async function updateExistingSession(
 	let updatedHistorianUrl: string | undefined;
 	let updatedDeltaStreamUrl: string | undefined;
 	let updatedMessageBrokerId: string | undefined = existingSession.messageBrokerId;
+	const updatedSessionCorrelationId: string = uuid();
 	// Session stickiness keeps the a given document in 1 location for the configured
 	// stickiness duration after the session ends. In the case of periodic op backup, this can ensure
 	// that ops are backed up to a global location before a session is allowed to move.
@@ -159,6 +162,7 @@ async function updateExistingSession(
 		isSessionAlive: true,
 		// If session was not alive, it cannot be "active"
 		isSessionActive: false,
+		sessionCorrelationId: updatedSessionCorrelationId,
 	};
 	// if undefined and added directly to the session object - will be serialized as null in mongo which is undesirable
 	if (updatedMessageBrokerId) {

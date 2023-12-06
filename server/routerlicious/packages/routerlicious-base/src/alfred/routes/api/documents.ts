@@ -279,6 +279,7 @@ export function create(
 		async (request, response, next) => {
 			const documentId = getParam(request.params, "id");
 			const tenantId = getParam(request.params, "tenantId");
+			const clientCorrelationId: string = request.header("x-client-correlation-id") ?? uuid();
 			const session = getSession(
 				externalOrdererUrl,
 				externalHistorianUrl,
@@ -288,7 +289,7 @@ export function create(
 				documentRepository,
 				sessionStickinessDurationMs,
 				messageBrokerId,
-			);
+			).then((s) => ({ ...s, clientCorrelationId }));
 			handleResponse(session, response, false);
 		},
 	);

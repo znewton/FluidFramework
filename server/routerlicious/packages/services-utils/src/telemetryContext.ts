@@ -5,7 +5,11 @@
 
 import { v4 as uuid } from "uuid";
 import type { RequestHandler, Request, Response } from "express";
-import { CorrelationIdHeaderName } from "@fluidframework/server-services-client";
+import {
+	CorrelationIdHeaderName,
+	ClientCorrelationIdHeaderName,
+	SessionCorrelationIdHeaderName,
+} from "@fluidframework/server-services-client";
 import {
 	BaseTelemetryProperties,
 	ITelemetryContextProperties,
@@ -22,9 +26,15 @@ function getTelemetryContextPropertiesFromRequest(
 ): Partial<ITelemetryContextProperties> {
 	const correlationIdHeader =
 		req.get(CorrelationIdHeaderName) ?? res.get(CorrelationIdHeaderName);
+	const clientCorrelationIdHeader =
+		req.get(ClientCorrelationIdHeaderName) ?? res.get(ClientCorrelationIdHeaderName);
+	const sessionCorrelationIdHeader =
+		req.get(SessionCorrelationIdHeaderName) ?? res.get(SessionCorrelationIdHeaderName);
 	// Safely parse and return accepted telemetry properties.
 	return {
 		[BaseTelemetryProperties.correlationId]: correlationIdHeader,
+		[BaseTelemetryProperties.clientCorrelationId]: clientCorrelationIdHeader,
+		[BaseTelemetryProperties.sessionCorrelationId]: sessionCorrelationIdHeader,
 	};
 }
 
@@ -66,6 +76,14 @@ export const bindTelemetryContext = (): RequestHandler => {
 		}
 		// Assign response headers for client telemetry purposes.
 		res.setHeader(CorrelationIdHeaderName, telemetryContextProperties.correlationId);
+		res.setHeader(
+			ClientCorrelationIdHeaderName,
+			telemetryContextProperties.clientCorrelationId,
+		);
+		res.setHeader(
+			SessionCorrelationIdHeaderName,
+			telemetryContextProperties.sessionCorrelationId,
+		);
 		telemetryContext.bindProperties(telemetryContextProperties, () => next());
 	};
 };

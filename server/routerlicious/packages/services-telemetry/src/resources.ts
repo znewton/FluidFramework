@@ -37,6 +37,8 @@ export enum BaseTelemetryProperties {
 	tenantId = "tenantId",
 	documentId = "documentId",
 	correlationId = "correlationId",
+	clientCorrelationId = "clientCorrelationId",
+	sessionCorrelationId = "sessionCorrelationId",
 }
 
 // Incoming message properties

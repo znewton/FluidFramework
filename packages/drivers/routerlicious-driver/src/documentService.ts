@@ -22,7 +22,7 @@ import {
 } from "./restWrapper";
 import { IRouterliciousDriverPolicies } from "./policies";
 import { ICache } from "./cache";
-import { ISnapshotTreeVersion } from "./definitions";
+import { IExtendedSession, ISnapshotTreeVersion } from "./definitions";
 import { pkgVersion as driverVersion } from "./packageVersion";
 import { GitManager } from "./gitManager";
 import { Historian } from "./historian";
@@ -73,6 +73,7 @@ export class DocumentService implements api.IDocumentService {
 		private storageRestWrapper: RouterliciousStorageRestWrapper,
 		private readonly storageTokenFetcher: TokenFetcher,
 		private readonly ordererTokenFetcher: TokenFetcher,
+		private readonly session: IExtendedSession,
 	) {}
 
 	private documentStorageService: DocumentStorageService | undefined;
@@ -232,6 +233,14 @@ export class DocumentService implements api.IDocumentService {
 				);
 			}
 
+			const sessionIds: Pick<
+				IExtendedSession,
+				"clientCorrelationId" | "sessionCorrelationId"
+			> = {
+				clientCorrelationId: this.session?.clientCorrelationId,
+				sessionCorrelationId: this.session?.sessionCorrelationId,
+			};
+
 			return PerformanceEvent.timedExecAsync(
 				this.logger,
 				{
@@ -249,6 +258,7 @@ export class DocumentService implements api.IDocumentService {
 						this.logger,
 						undefined /* timeoutMs */,
 						this.driverPolicies.enableLongPollingDowngrade,
+						sessionIds,
 					);
 				},
 			);

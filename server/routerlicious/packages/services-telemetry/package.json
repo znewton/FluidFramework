@@ -78,6 +78,10 @@
 		"typescript": "~4.5.5"
 	},
 	"typeValidation": {
-		"broken": {}
+		"broken": {
+			"InterfaceDeclaration_ITelemetryContextProperties": {
+				"forwardCompat": false
+			}
+		}
 	}
 }

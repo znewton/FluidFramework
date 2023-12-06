@@ -54,5 +54,5 @@ export interface ISession {
 	 * A unique identifier for the session.
 	 * This is used to correlate the session across multiple requests and services services.
 	 */
-	sessionCorrelationId: string;
+	sessionCorrelationId?: string;
 }

@@ -76,14 +76,18 @@ export const bindTelemetryContext = (): RequestHandler => {
 		}
 		// Assign response headers for client telemetry purposes.
 		res.setHeader(CorrelationIdHeaderName, telemetryContextProperties.correlationId);
-		res.setHeader(
-			ClientCorrelationIdHeaderName,
-			telemetryContextProperties.clientCorrelationId,
-		);
-		res.setHeader(
-			SessionCorrelationIdHeaderName,
-			telemetryContextProperties.sessionCorrelationId,
-		);
+		if (telemetryContextProperties.clientCorrelationId) {
+			res.setHeader(
+				ClientCorrelationIdHeaderName,
+				telemetryContextProperties.clientCorrelationId,
+			);
+		}
+		if (telemetryContextProperties.sessionCorrelationId) {
+			res.setHeader(
+				SessionCorrelationIdHeaderName,
+				telemetryContextProperties.sessionCorrelationId,
+			);
+		}
 		telemetryContext.bindProperties(telemetryContextProperties, () => next());
 	};
 };

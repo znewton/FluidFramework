@@ -51,6 +51,9 @@ export const canWrite: (scopes: string[]) => boolean;
 // @internal (undocumented)
 export const choose: () => string;
 
+// @internal (undocumented)
+export const ClientCorrelationIdHeaderName = "x-client-correlation-id";
+
 // @internal
 export function convertFirstSummaryWholeSummaryTreeToSummaryTree(wholeSummaryTree: IWholeSummaryTree, unreferenced?: true | undefined): ISummaryTree;
 
@@ -379,6 +382,7 @@ export interface ISession {
     isSessionAlive: boolean;
     messageBrokerId?: string;
     ordererUrl: string;
+    sessionCorrelationId?: string;
 }
 
 // @internal (undocumented)
@@ -591,6 +595,9 @@ export abstract class RestWrapper {
     // (undocumented)
     protected abstract request<T>(options: AxiosRequestConfig, statusCode: number): Promise<T>;
 }
+
+// @internal (undocumented)
+export const SessionCorrelationIdHeaderName = "x-session-correlation-id";
 
 // @internal (undocumented)
 export const setGlobalTimeoutContext: (timeoutContext: ITimeoutContext) => void;

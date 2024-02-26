@@ -21,11 +21,7 @@ import {
 } from "./conversions";
 import { Constants } from "./constants";
 import { readSummary } from "./readWholeSummary";
-import {
-	IWriteSummaryTreeOptions,
-	writeFullGitTreeAsSummaryTree,
-	writeSummaryTree,
-} from "./coreWriteUtils";
+import { IWriteSummaryTreeOptions, writeFullGitTree, writeSummaryTree } from "./coreWriteUtils";
 
 /**
  * Retrieve a git tree from storage, then write it into the in-memory filesystem.
@@ -48,10 +44,8 @@ async function retrieveMissingGitTreeIntoMemory(
 		false /* parseInnerFullGitTrees */,
 		true /* retrieveBlobs */,
 	);
-	const writtenTreeHandle = await writeFullGitTreeAsSummaryTree(
-		fullTree,
-		inMemoryWriteSummaryTreeOptions,
-	);
+	const writtenTree = await writeFullGitTree(fullTree, inMemoryWriteSummaryTreeOptions);
+	const writtenTreeHandle = writtenTree.tree.sha;
 	if (writtenTreeHandle !== missingTreeSha) {
 		Lumberjack.error(
 			`Attempted to recover from missing git object (${missingTreeSha}), but recovered data sha (${writtenTreeHandle}) did not match.`,

@@ -12,8 +12,8 @@ import {
 	NetworkError,
 	WholeSummaryTreeEntry,
 } from "@fluidframework/server-services-client";
-import { getGitMode, getGitType } from "@fluidframework/protocol-base";
-import { SummaryType } from "@fluidframework/protocol-definitions";
+import { buildGitTreeHierarchy, getGitMode, getGitType } from "@fluidframework/protocol-base";
+import { SummaryType, FileMode, type ISnapshotTreeEx } from "@fluidframework/protocol-definitions";
 import { IRepositoryManager } from "../definitions";
 import { IFullGitTree } from "./definitions";
 import {
@@ -75,14 +75,183 @@ export interface IWriteSummaryTreeOptions {
  * This appears to be an unnecessary amount of conversions, but the internal logic for parsing {@link IFullGitTree}s stored as blobs
  * makes a more straightforward approach difficult. It should be possible to simplify this in the future with care and appropriate testing.
  */
-export async function writeFullGitTreeAsSummaryTree(
+async function writeFullGitTreeV1(
 	fullGitTree: IFullGitTree,
 	options: IWriteSummaryTreeOptions,
-): Promise<string> {
+): Promise<IFullGitTree> {
 	const fullSummaryTree = convertFullGitTreeToFullSummaryTree(fullGitTree);
 	const wholeSummaryTreeEntries = convertFullSummaryToWholeSummaryEntries(fullSummaryTree);
 	const tree = await writeSummaryTree(wholeSummaryTreeEntries, options);
-	return tree.tree.sha;
+	return tree;
+}
+
+/**
+ * Converts an {@link IFullGitTree} into a {@link ISnapshotTreeEx} using {@link buildGitTreeHierarchy},
+ * then writes it into Git Storage.
+ */
+async function writeFullGitTreeV2(
+	fullGitTree: IFullGitTree,
+	options: IWriteSummaryTreeOptions,
+): Promise<IFullGitTree> {
+	const writeSnapshotTree = async ({ trees, blobs }: ISnapshotTreeEx): Promise<IFullGitTree> => {
+		const createTreeEntries: ICreateTreeEntry[] = await Promise.all([
+			...Object.entries(blobs).map(async ([blobPath, sha]) => {
+				const blob = fullGitTree.blobs[sha];
+				if (!blob) {
+					throw new NetworkError(404, `Blob not found: ${sha}`);
+				}
+				if (blob.encoding !== "utf-8" && blob.encoding !== "base64") {
+					throw new NetworkError(400, `Invalid blob encoding: ${blob.encoding}`);
+				}
+				const blobResponse = await options.repoManager.createBlob({
+					content: blob.content,
+					encoding: blob.encoding,
+				});
+				if (sha !== blobResponse.sha) {
+					throw new NetworkError(
+						500,
+						`Blob sha mismatch: ${sha} !== ${blobResponse.sha}`,
+					);
+				}
+				return {
+					mode: FileMode.File,
+					path: blobPath,
+					sha,
+					type: "blob",
+				};
+			}),
+			...Object.entries(trees).map(async ([subTreePath, subSnapshotTree]) => {
+				const subTree = await writeSnapshotTree(subSnapshotTree);
+				const entry: ICreateTreeEntry = {
+					mode: FileMode.Directory,
+					path: subTreePath,
+					sha: subTree.tree.sha,
+					type: "tree",
+				};
+				return entry;
+			}),
+		]);
+
+		const createdTree = await options.repoManager.createTree({ tree: createTreeEntries });
+		if (options.precomputeFullTree && options.currentPath === "") {
+			return fullGitTree;
+		}
+		return {
+			tree: createdTree,
+			blobs: options.blobCache,
+			parsedFullTreeBlobs: false,
+		};
+	};
+
+	const snapshotTree: ISnapshotTreeEx = buildGitTreeHierarchy(fullGitTree.tree);
+	return writeSnapshotTree(snapshotTree);
+}
+
+interface IHeirarchicalTreeEntry {
+	entry: ICreateTreeEntry;
+	entries?: IHeirarchicalTreeEntry[];
+}
+/**
+ * Converts an {@link IFullGitTree} into a heirarchical tree structure,
+ * then writes it into Git Storage.
+ */
+async function writeFullGitTreeV3(
+	fullGitTree: IFullGitTree,
+	options: IWriteSummaryTreeOptions,
+): Promise<IFullGitTree> {
+	const buildFullGitTreeHeirarchy = () => {
+		const lookup: { [path: string]: IHeirarchicalTreeEntry } = {};
+		const rootPath = "";
+		const root: IHeirarchicalTreeEntry = {
+			entry: {
+				mode: FileMode.Directory,
+				path: rootPath,
+				type: "tree",
+				sha: fullGitTree.tree.sha,
+			},
+			entries: [],
+		};
+		lookup[rootPath] = root;
+		for (const entry of fullGitTree.tree.tree) {
+			const entryPath = entry.path;
+			const lastIndex = entryPath.lastIndexOf("/");
+			const entryPathDir = entryPath.slice(0, Math.max(0, lastIndex));
+			const entryPathBase = entryPath.slice(lastIndex + 1);
+			// The flat output is breadth-first so we can assume we see tree nodes prior to their contents
+			const node = lookup[entryPathDir];
+			const createTreeEntry = {
+				mode: entry.mode,
+				path: entryPathBase,
+				sha: entry.sha,
+				type: entry.type,
+			};
+			if (entry.type === "tree") {
+				const newHeirarchicalTreeEntry: IHeirarchicalTreeEntry = {
+					entry: createTreeEntry,
+					entries: [],
+				};
+				lookup[entryPath] = newHeirarchicalTreeEntry;
+				node.entries.push(newHeirarchicalTreeEntry);
+			} else if (entry.type === "blob") {
+				node.entries.push({ entry: createTreeEntry });
+			} else {
+				throw new Error(`Unknown entry type!!`);
+			}
+		}
+		return root;
+	};
+
+	const writeBlob = async (sha: string): Promise<void> => {
+		const blob = fullGitTree.blobs[sha];
+		if (!blob) {
+			throw new NetworkError(404, `Blob not found: ${sha}`);
+		}
+		if (blob.encoding !== "utf-8" && blob.encoding !== "base64") {
+			throw new NetworkError(400, `Invalid blob encoding: ${blob.encoding}`);
+		}
+		const blobResponse = await options.repoManager.createBlob({
+			content: blob.content,
+			encoding: blob.encoding,
+		});
+		if (sha !== blobResponse.sha) {
+			throw new NetworkError(500, `Blob sha mismatch: ${sha} !== ${blobResponse.sha}`);
+		}
+	};
+
+	const writeTree = async (heirarchicalTreeEntry: IHeirarchicalTreeEntry): Promise<void> => {
+		const createTreeEntries: ICreateTreeEntry[] = await Promise.all(
+			heirarchicalTreeEntry.entries.map(async (heirarchicalTreeSubEntry) => {
+				const entry = heirarchicalTreeSubEntry.entry;
+				if (entry.type === "blob") {
+					await writeBlob(entry.sha);
+				} else if (entry.type === "tree") {
+					await writeTree(heirarchicalTreeSubEntry);
+				}
+				return {
+					mode: entry.mode,
+					path: entry.path,
+					sha: entry.sha,
+					type: entry.type,
+				};
+			}),
+		);
+		await options.repoManager.createTree({ tree: createTreeEntries });
+	};
+	const heirarchicalTree = buildFullGitTreeHeirarchy();
+	await writeTree(heirarchicalTree);
+	return fullGitTree;
+}
+
+/**
+ * Writes a full Git tree ({@link IFullGitTree}) into storage.
+ */
+export async function writeFullGitTree(
+	fullGitTree: IFullGitTree,
+	options: IWriteSummaryTreeOptions,
+): Promise<IFullGitTree> {
+	return writeFullGitTreeV1(fullGitTree, options);
+	return writeFullGitTreeV2(fullGitTree, options);
+	return writeFullGitTreeV3(fullGitTree, options);
 }
 
 /**
@@ -168,7 +337,7 @@ async function getShaFromTreeHandleEntry(
 		// If the git tree/blob shas being referenced by a shredded summary write (high-io write) with handles
 		// are hidden within a fullGitTree blob, we need to write those hidden blobs as individual trees/blobs
 		// into storage so that they can be appropriately referenced by the uploaded summary tree.
-		await writeFullGitTreeAsSummaryTree(gitTree, options);
+		await writeFullGitTree(gitTree, options);
 	}
 	for (const treeEntry of gitTree.tree.tree) {
 		options.entryHandleToObjectShaCache.set(`${parentHandle}/${treeEntry.path}`, treeEntry.sha);

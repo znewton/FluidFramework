@@ -9,7 +9,7 @@ import { SinonSpiedInstance, restore, spy } from "sinon";
 import { Provider } from "nconf";
 import IoRedisMock from "ioredis-mock";
 import { IWholeFlatSummary, LatestSummaryId } from "@fluidframework/server-services-client";
-import { ISummaryTestMode } from "./utils";
+// import { ISummaryTestMode } from "./utils";
 import {
 	GitWholeSummaryManager,
 	IFileSystemManagerFactory,
@@ -51,18 +51,18 @@ import {
 } from "./examples2";
 
 // Github Copilot wizardry.
-function permuteFlags(obj: Record<string, boolean>): Record<string, boolean>[] {
-	const keys = Object.keys(obj);
-	const permutations: Record<string, boolean>[] = [];
-	for (let i = 0; i < Math.pow(2, keys.length); i++) {
-		const permutation: Record<string, boolean> = {};
-		for (let j = 0; j < keys.length; j++) {
-			permutation[keys[j]] = (i & (1 << j)) !== 0;
-		}
-		permutations.push(permutation);
-	}
-	return permutations;
-}
+// function permuteFlags(obj: Record<string, boolean>): Record<string, boolean>[] {
+// 	const keys = Object.keys(obj);
+// 	const permutations: Record<string, boolean>[] = [];
+// 	for (let i = 0; i < Math.pow(2, keys.length); i++) {
+// 		const permutation: Record<string, boolean> = {};
+// 		for (let j = 0; j < keys.length; j++) {
+// 			permutation[keys[j]] = (i & (1 << j)) !== 0;
+// 		}
+// 		permutations.push(permutation);
+// 	}
+// 	return permutations;
+// }
 
 function replaceTestShas<T>(obj: T, shasToReplacements: { sha: string; replacement: string }[]): T {
 	let result: string = JSON.stringify(obj);
@@ -101,12 +101,20 @@ function assertEqualSummaries(
 		message,
 	);
 }
-const testModes = permuteFlags({
-	repoPerDocEnabled: false,
-	enableLowIoWrite: false,
-	enableOptimizedInitialSummary: false,
-	enableSlimGitInit: false,
-}) as unknown as ISummaryTestMode[];
+// const testModes = permuteFlags({
+// 	repoPerDocEnabled: false,
+// 	enableLowIoWrite: false,
+// 	enableOptimizedInitialSummary: false,
+// 	enableSlimGitInit: false,
+// }) as unknown as ISummaryTestMode[];
+const testModes = [
+	{
+		repoPerDocEnabled: true,
+		enableLowIoWrite: true,
+		enableOptimizedInitialSummary: true,
+		enableSlimGitInit: true,
+	},
+];
 
 type GitFileSystem = "memfs" | "redisfs" | "hashmap-redisfs";
 

@@ -280,7 +280,9 @@ export class NexusResourcesFactory implements core.IResourcesFactory<NexusResour
 		const defaultTTLInSeconds = 864000;
 		const checkpointsTTLSeconds =
 			config.get("checkpoints:checkpointsTTLInSeconds") ?? defaultTTLInSeconds;
-		await checkpointsCollection.createTTLIndex({ _ts: 1 }, checkpointsTTLSeconds);
+		await (checkpointsCollection.createOrUpdateTTLIndex
+			? checkpointsCollection.createOrUpdateTTLIndex("_ts", { _ts: 1 }, checkpointsTTLSeconds)
+			: checkpointsCollection.createTTLIndex?.({ _ts: 1 }, checkpointsTTLSeconds));
 
 		const nodeCollectionName = config.get("mongo:collectionNames:nodes");
 		const nodeManager = new NodeManager(operationsDbMongoManager, nodeCollectionName);

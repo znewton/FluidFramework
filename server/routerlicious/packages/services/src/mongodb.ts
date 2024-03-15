@@ -14,6 +14,7 @@ import {
 	MongoClient,
 	MongoClientOptions,
 	OptionalUnlessRequiredId,
+	type IndexSpecification,
 } from "mongodb";
 import {
 	BaseTelemetryProperties,
@@ -74,6 +75,12 @@ export class MongoCollection<T> implements core.ICollection<T>, core.IRetryable 
 		private readonly apiFailureRateTerminationThreshold: number,
 		private readonly apiMinimumCountToEnableTermination: number,
 		private readonly consecutiveFailedThresholdForLowerTotalRequests: number,
+		/**
+		 * For option details: https://www.mongodb.com/docs/manual/reference/command/collMod/#mongodb-collflag-index
+		 */
+		private readonly modifyCollectionIndex: (
+			indexOptions: Record<string, any>,
+		) => Promise<void>,
 	) {
 		setInterval(() => {
 			if (!this.apiCounter.countersAreActive) {
@@ -282,7 +289,10 @@ export class MongoCollection<T> implements core.ICollection<T>, core.IRetryable 
 
 	// Create index mostly happened at service bootstrap time. If we bubble up at that time,
 	// service will failed to start. So instead we need catch the exception and log it without bubbling up.
-	public async createTTLIndex(index: any, expireAfterSeconds?: number): Promise<void> {
+	public async createTTLIndex(
+		index: IndexSpecification,
+		expireAfterSeconds?: number,
+	): Promise<void> {
 		const req = async () => this.collection.createIndex(index, { expireAfterSeconds });
 		try {
 			const indexName = await this.requestWithRetry(
@@ -292,6 +302,42 @@ export class MongoCollection<T> implements core.ICollection<T>, core.IRetryable 
 			Lumberjack.info(`Created TTL index ${indexName}`);
 		} catch (error) {
 			Lumberjack.error(`TTL Index creation failed`, undefined, error);
+		}
+	}
+
+	public async createOrUpdateTTLIndex(
+		indexName: string,
+		index: IndexSpecification,
+		expireAfterSeconds?: number,
+	): Promise<void> {
+		// Retrieve collection indexes
+		const indexExistsReq = async () => this.collection.indexExists(indexName);
+		// Update index if it already exists and is different: https://www.mongodb.com/docs/manual/core/index-ttl/#change-the-expireafterseconds-value-for-a-ttl-index
+		const updateTTLIndexReq = async () =>
+			this.modifyCollectionIndex({ name: indexName, expireAfterSeconds });
+		// Create index if it doesn't exist
+		const createIndexReq = async () =>
+			this.collection.createIndex(index, { expireAfterSeconds });
+		try {
+			const indexExists = await this.requestWithRetry(
+				indexExistsReq, // request
+				"MongoCollection.createOrUpdateTTLIndex", // callerName
+			);
+			if (indexExists) {
+				await this.requestWithRetry(
+					updateTTLIndexReq, // request
+					"MongoCollection.createOrUpdateTTLIndex", // callerName
+				);
+				Lumberjack.info(`Updated TTL index ${indexName}`);
+			} else {
+				const createdIndexName = await this.requestWithRetry(
+					createIndexReq, // request
+					"MongoCollection.createOrUpdateTTLIndex", // callerName
+				);
+				Lumberjack.info(`Created TTL index ${createdIndexName}`);
+			}
+		} catch (error) {
+			Lumberjack.error(`TTL Index create/update failed`, undefined, error);
 		}
 	}
 
@@ -562,7 +608,11 @@ export class MongoDb implements core.IDb {
 	}
 
 	public collection<T>(name: string, dbName = "admin"): core.ICollection<T> {
-		const collection = this.client.db(dbName).collection<T>(name);
+		const db = this.client.db(dbName);
+		const collection = db.collection<T>(name);
+		const modifyCollectionIndex = async (indexOptions: Record<string, any>) => {
+			await db.command({ collMod: name, index: indexOptions });
+		};
 		return new MongoCollection<T>(
 			collection,
 			this.retryEnabled,
@@ -573,6 +623,7 @@ export class MongoDb implements core.IDb {
 			this.apiFailureRateTerminationThreshold,
 			this.apiMinimumCountToEnableTermination,
 			this.consecutiveFailedThresholdForLowerTotalRequests,
+			modifyCollectionIndex,
 		);
 	}
 

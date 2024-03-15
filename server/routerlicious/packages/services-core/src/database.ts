@@ -247,9 +247,43 @@ export interface ICollection<T> {
 
 	distinct(key: any, query: any): Promise<any>;
 
+	/**
+	 * Creates an index at the collection level. If the index already exists, this is a no-op.
+	 *
+	 * @param index - index to create
+	 * @param unique - whether to enforce uniqueness for the indexed fields
+	 */
 	createIndex(index: any, unique: boolean): Promise<void>;
 
+	/**
+	 * Check if the index already exists, if not, create it. If different, drop and recreate it.
+	 *
+	 * @param indexName - name of index to create or update
+	 * @param index - index to create or update
+	 * @param unique - whether to enforce uniqueness for the indexed fields
+	 */
+	createOrUpdateIndex?(indexName: string, index: any, unique: boolean): Promise<void>;
+
+	/**
+	 * Creates a TTL index at the collection level. If the index already exists, this is a no-op.
+	 *
+	 * @param index - index to create
+	 * @param mongoExpireAfterSeconds - how long to wait before expiring documents in the collection
+	 */
 	createTTLIndex?(index: any, mongoExpireAfterSeconds?: number): Promise<void>;
+
+	/**
+	 * Check if the TTL index already exists, if not, create it. If different, drop and recreate it.
+	 *
+	 * @param indexName - name of index to create or update
+	 * @param index - index to create or update
+	 * @param unique - whether to enforce uniqueness for the indexed fields
+	 */
+	createOrUpdateTTLIndex?(
+		indexName: string,
+		index: any,
+		mongoExpireAfterSeconds?: number,
+	): Promise<void>;
 }
 
 /**

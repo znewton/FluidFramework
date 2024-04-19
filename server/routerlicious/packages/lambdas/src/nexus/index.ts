@@ -515,5 +515,11 @@ export function configureWebSocketServices(
 				disconnectMetric.error(`Disconnect failed.`, error);
 			}
 		});
+
+		socket.on("pong", (ms: number) => {
+			if (!ms) {
+				return;
+			}
+		});
 	});
 }

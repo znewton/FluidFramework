@@ -12,7 +12,7 @@ import {
 	LumberEventName,
 } from "@fluidframework/server-services-telemetry";
 import { Namespace, Server, Socket, RemoteSocket } from "socket.io";
-import { createAdapter } from "@socket.io/redis-adapter";
+import { createAdapter, createShardedAdapter } from "@socket.io/redis-adapter";
 import type { Adapter } from "socket.io-adapter";
 import { IRedisClientConnectionManager } from "@fluidframework/server-services-utils";
 import * as redisSocketIoAdapter from "./redisSocketIoAdapter";
@@ -20,6 +20,35 @@ import {
 	SocketIORedisConnection,
 	SocketIoRedisSubscriptionConnection,
 } from "./socketIoRedisConnection";
+
+export interface ISocketIoAdapterConfig {
+	/**
+	 * Enables usage of the custom Redis adapter for socket.io, which creates a
+	 * Redis pub/sub subscription for each room, which is important for scaling
+	 * when the number of clients per room is less than the number of servers.
+	 */
+	enableCustomSocketIoAdapter?: boolean;
+	/**
+	 * When using the custom adapter, this flag can be set to `true` to disable
+	 * the default namespace. This can reduce memory usage.
+	 */
+	shouldDisableDefaultNamespace?: boolean;
+	/**
+	 * Enables usage of the sharded cluster adapter for socket.io, which creates a
+	 * Redis pub/sub subscription for each room, which is important for scaling
+	 * when the number of clients per room is less than the number of servers.
+	 *
+	 * This option is only compatible with Redis 7.0+, and exposes more functionality than
+	 * the custom adapter, such as the ability to get socket data across server instances.
+	 *
+	 * There is currently an ioredis bug that blocks usage of this adapter with ioredis. See:
+	 * https://github.com/redis/ioredis/issues/1759
+	 *
+	 * @see https://redis.io/docs/manual/pubsub/#sharded-pubsub
+	 * @see https://socket.io/docs/v4/redis-adapter/#sharded-adapter
+	 */
+	enableShardedClusterAdapter?: boolean;
+}
 
 class SocketIoSocket implements core.IWebSocket {
 	public get id(): string {
@@ -238,6 +267,17 @@ export function create(
 		);
 
 		adapter = redisSocketIoAdapter.RedisSocketIoAdapter as any;
+	} else if (socketIoAdapterConfig?.enableShardedClusterAdapter) {
+		adapter = createShardedAdapter(
+			redisClientConnectionManagerForPub.getRedisClient(),
+			redisClientConnectionManagerForSub.getRedisClient(),
+			{
+				// Creates subscriptions per room, which reduces the number of messages sent to each server.
+				// This is useful when the number of clients per room is less than the number of servers.
+				// "dynamic" is the default option, but we are locking it here for clarity and forward compatibility.
+				subscriptionMode: "dynamic",
+			},
+		);
 	} else {
 		adapter = createAdapter(
 			redisClientConnectionManagerForPub.getRedisClient(),

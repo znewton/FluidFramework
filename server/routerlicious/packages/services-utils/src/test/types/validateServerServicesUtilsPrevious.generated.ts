@@ -212,26 +212,14 @@ use_old_EnumDeclaration_FluidServiceErrorCode(
 /*
 * Validate forward compat by using old type in place of current type
 * If breaking change required, add in package.json under typeValidation.broken:
-* "InterfaceDeclaration_IApiCounters": {"forwardCompat": false}
+* "RemovedInterfaceDeclaration_IApiCounters": {"forwardCompat": false}
 */
-declare function get_old_InterfaceDeclaration_IApiCounters():
-    TypeOnly<old.IApiCounters>;
-declare function use_current_InterfaceDeclaration_IApiCounters(
-    use: TypeOnly<current.IApiCounters>): void;
-use_current_InterfaceDeclaration_IApiCounters(
-    get_old_InterfaceDeclaration_IApiCounters());
 
 /*
 * Validate back compat by using current type in place of old type
 * If breaking change required, add in package.json under typeValidation.broken:
-* "InterfaceDeclaration_IApiCounters": {"backCompat": false}
+* "RemovedInterfaceDeclaration_IApiCounters": {"backCompat": false}
 */
-declare function get_current_InterfaceDeclaration_IApiCounters():
-    TypeOnly<current.IApiCounters>;
-declare function use_old_InterfaceDeclaration_IApiCounters(
-    use: TypeOnly<old.IApiCounters>): void;
-use_old_InterfaceDeclaration_IApiCounters(
-    get_current_InterfaceDeclaration_IApiCounters());
 
 /*
 * Validate forward compat by using old type in place of current type
@@ -356,26 +344,14 @@ use_old_InterfaceDeclaration_IWinstonConfig(
 /*
 * Validate forward compat by using old type in place of current type
 * If breaking change required, add in package.json under typeValidation.broken:
-* "ClassDeclaration_InMemoryApiCounters": {"forwardCompat": false}
+* "RemovedClassDeclaration_InMemoryApiCounters": {"forwardCompat": false}
 */
-declare function get_old_ClassDeclaration_InMemoryApiCounters():
-    TypeOnly<old.InMemoryApiCounters>;
-declare function use_current_ClassDeclaration_InMemoryApiCounters(
-    use: TypeOnly<current.InMemoryApiCounters>): void;
-use_current_ClassDeclaration_InMemoryApiCounters(
-    get_old_ClassDeclaration_InMemoryApiCounters());
 
 /*
 * Validate back compat by using current type in place of old type
 * If breaking change required, add in package.json under typeValidation.broken:
-* "ClassDeclaration_InMemoryApiCounters": {"backCompat": false}
+* "RemovedClassDeclaration_InMemoryApiCounters": {"backCompat": false}
 */
-declare function get_current_ClassDeclaration_InMemoryApiCounters():
-    TypeOnly<current.InMemoryApiCounters>;
-declare function use_old_ClassDeclaration_InMemoryApiCounters(
-    use: TypeOnly<old.InMemoryApiCounters>): void;
-use_old_ClassDeclaration_InMemoryApiCounters(
-    get_current_ClassDeclaration_InMemoryApiCounters());
 
 /*
 * Validate forward compat by using old type in place of current type

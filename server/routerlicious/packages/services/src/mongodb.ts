@@ -20,7 +20,7 @@ import {
 	Lumberjack,
 	LumberEventName,
 } from "@fluidframework/server-services-telemetry";
-import { InMemoryApiCounters } from "@fluidframework/server-services-utils";
+import { InMemoryApiCounters } from "@fluidframework/server-services-client";
 import { MongoErrorRetryAnalyzer } from "./mongoExceptionRetryRules";
 
 const MaxFetchSize = 2000;

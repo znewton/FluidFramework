@@ -111,6 +111,14 @@
 			"RemovedFunctionDeclaration_getRedisClient": {
 				"forwardCompat": false,
 				"backCompat": false
+			},
+			"RemovedInterfaceDeclaration_IApiCounters": {
+				"forwardCompat": false,
+				"backCompat": false
+			},
+			"RemovedClassDeclaration_InMemoryApiCounters": {
+				"forwardCompat": false,
+				"backCompat": false
 			}
 		}
 	}

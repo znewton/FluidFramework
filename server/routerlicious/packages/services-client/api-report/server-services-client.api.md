@@ -229,6 +229,26 @@ export interface IAlfredTenant {
     key: string;
 }
 
+// @internal (undocumented)
+export interface IApiCounters {
+    // (undocumented)
+    countersAreActive: boolean;
+    // (undocumented)
+    decrementCounter(apiName: string, decrementBy?: number): void;
+    // (undocumented)
+    getCounter(apiName: string): number | undefined;
+    // (undocumented)
+    getCounters(): Record<string, number>;
+    // (undocumented)
+    incrementCounter(apiName: string, incrementBy?: number): void;
+    // (undocumented)
+    initializeCounter(apiName: string): void;
+    // (undocumented)
+    initializeCounters(apiNames: string[]): void;
+    // (undocumented)
+    resetAllCounters(): void;
+}
+
 // @internal
 export interface ICreateRefParamsExternal extends resources.ICreateRefParams {
     // (undocumented)
@@ -380,6 +400,27 @@ export interface INetworkErrorDetails {
     retryAfter?: number;
     retryAfterMs?: number;
     source?: string;
+}
+
+// @internal (undocumented)
+export class InMemoryApiCounters implements IApiCounters {
+    constructor(apiNames?: string[]);
+    // (undocumented)
+    get countersAreActive(): boolean;
+    // (undocumented)
+    decrementCounter(apiName: string, decrementBy?: number): void;
+    // (undocumented)
+    getCounter(apiName: string): number | undefined;
+    // (undocumented)
+    getCounters(): Record<string, number>;
+    // (undocumented)
+    incrementCounter(apiName: string, incrementBy?: number): void;
+    // (undocumented)
+    initializeCounter(apiName: string): void;
+    // (undocumented)
+    initializeCounters(apiNames: string[]): void;
+    // (undocumented)
+    resetAllCounters(): void;
 }
 
 // @internal

@@ -15,13 +15,14 @@ import {
 	ISecretManager,
 	ICache,
 } from "@fluidframework/server-services-core";
-import { isNetworkError, NetworkError } from "@fluidframework/server-services-client";
-import { BaseTelemetryProperties, Lumberjack } from "@fluidframework/server-services-telemetry";
 import {
+	isNetworkError,
+	NetworkError,
 	IApiCounters,
 	InMemoryApiCounters,
-	ITenantKeyGenerator,
-} from "@fluidframework/server-services-utils";
+} from "@fluidframework/server-services-client";
+import { BaseTelemetryProperties, Lumberjack } from "@fluidframework/server-services-telemetry";
+import { ITenantKeyGenerator } from "@fluidframework/server-services-utils";
 import * as jwt from "jsonwebtoken";
 import * as _ from "lodash";
 import * as winston from "winston";

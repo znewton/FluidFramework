@@ -3,7 +3,6 @@
  * Licensed under the MIT License.
  */
 
-export { IApiCounters, InMemoryApiCounters } from "./apiCounters";
 export {
 	AsyncLocalStorageContextProvider,
 	AsyncLocalStorageTelemetryContext,

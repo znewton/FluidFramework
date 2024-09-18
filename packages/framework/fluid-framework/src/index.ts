@@ -5,13 +5,13 @@
 
 /**
  * Bundles a collection of Fluid Framework client libraries for easy use when paired with a corresponding service client
- * package (e.g. `@fluidframework/azure-client`, `@fluidframework/tinylicious-client`, or `@fluid-experimental/osdp-client (BETA)`).
+ * package (e.g. `@fluidframework/azure-client`, `@fluidframework/tinylicious-client`, or `@fluidframework/odsp-client (BETA)`).
  *
  * @packageDocumentation
  */
 
 // ===============================================================
-// #region Public exports
+// #region Public, Beta and Alpha (non-legacy) exports
 // #region Basic re-exports
 
 export type {
@@ -56,14 +56,14 @@ export type {
 	FluidObjectProviderKeys, // Used by FluidObject
 } from "@fluidframework/core-interfaces";
 
-// Let the tree package manage its own API surface, we will simply reflect it here.
-// Note: this only surfaces the `@public` API items from the tree package. If the `@beta` and `@alpha` items are
-// desired, they can be added by re-exporting from one of the package's aliased export paths instead (e.g. `tree
-// alpha` to surface everything `@alpha` and higher).
-// eslint-disable-next-line no-restricted-syntax, import/export
-export * from "@fluidframework/tree";
+export type { isFluidHandle } from "@fluidframework/runtime-utils";
 
-// End of basic public exports - nothing above this line should
+// Let the tree package manage its own API surface.
+// Note: this only surfaces the `@public, @beta and @alpha` API items from the tree package.
+// eslint-disable-next-line no-restricted-syntax, import/no-internal-modules
+export * from "@fluidframework/tree/alpha";
+
+// End of basic public+beta+alpha exports - nothing above this line should
 // depend on an /internal path.
 // #endregion Basic re-exports
 // ---------------------------------------------------------------
@@ -86,7 +86,7 @@ import { SharedTree as OriginalSharedTree } from "@fluidframework/tree/internal"
 export const SharedTree: SharedObjectKind<ITree> = OriginalSharedTree;
 
 // #endregion Custom re-exports
-// #endregion Public exports
+// #endregion
 
 // ===============================================================
 // #region Legacy exports

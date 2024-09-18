@@ -6,7 +6,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
-import { IOdspTokenProvider } from "@fluidframework/odsp-client";
+import { IOdspTokenProvider } from "@fluidframework/odsp-client/internal";
 import {
 	IPublicClientConfig,
 	TokenRequestCredentials,
@@ -70,6 +70,9 @@ export class OdspTestTokenProvider implements IOdspTokenProvider {
 			getFetchTokenUrl(server),
 			new URLSearchParams(body),
 		);
+		if (!response.ok) {
+			throw new Error(`Failed to obtain tokens: ${await response.text()}`);
+		}
 
 		const parsedResponse = await response.json();
 		const accessToken = parsedResponse.access_token;

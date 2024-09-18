@@ -138,7 +138,10 @@ export class ForestSummarizer implements Summarizable {
 			const fieldChanges: [FieldKey, DeltaFieldChanges][] = [];
 			const build: DeltaDetachedNodeBuild[] = [];
 			for (const [fieldKey, field] of fields) {
-				const chunked = chunkField(field, defaultChunkPolicy);
+				const chunked = chunkField(field, {
+					policy: defaultChunkPolicy,
+					idCompressor: this.idCompressor,
+				});
 				const nodeCursors = chunked.flatMap((chunk) =>
 					mapCursorField(chunk.cursor(), (cursor) => cursor.fork()),
 				);
@@ -158,6 +161,7 @@ export class ForestSummarizer implements Summarizable {
 			assert(this.forest.isEmpty, 0x797 /* forest must be empty */);
 			applyDelta(
 				{ build, fields: new Map(fieldChanges) },
+				undefined,
 				this.forest,
 				makeDetachedFieldIndex("init", this.revisionTagCodec, this.idCompressor),
 			);

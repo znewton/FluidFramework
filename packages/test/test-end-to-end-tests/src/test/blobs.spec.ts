@@ -19,12 +19,7 @@ import {
 	ContainerMessageType,
 	DefaultSummaryConfiguration,
 } from "@fluidframework/container-runtime/internal";
-import {
-	ConfigTypes,
-	IConfigProviderBase,
-	IErrorBase,
-	IFluidHandle,
-} from "@fluidframework/core-interfaces";
+import { IErrorBase, IFluidHandle } from "@fluidframework/core-interfaces";
 import { Deferred } from "@fluidframework/core-utils/internal";
 import { IDocumentServiceFactory } from "@fluidframework/driver-definitions/internal";
 import { ReferenceType } from "@fluidframework/merge-tree/internal";
@@ -33,22 +28,21 @@ import {
 	ChannelFactoryRegistry,
 	ITestContainerConfig,
 	ITestObjectProvider,
+	createTestConfigProvider,
 	getContainerEntryPointBackCompat,
 	waitForContainerConnection,
+	timeoutPromise,
 } from "@fluidframework/test-utils/internal";
 import { v4 as uuid } from "uuid";
 
 import { wrapObjectAndOverride } from "../mocking.js";
+import { TestSnapshotCache } from "../testSnapshotCache.js";
 
 import {
 	MockDetachedBlobStorage,
 	driverSupportsBlobs,
 	getUrlFromDetachedBlobStorage,
 } from "./mockDetachedBlobStorage.js";
-
-const configProvider = (settings: Record<string, ConfigTypes>): IConfigProviderBase => ({
-	getRawConfig: (name: string): ConfigTypes => settings[name],
-});
 
 function makeTestContainerConfig(registry: ChannelFactoryRegistry): ITestContainerConfig {
 	return {
@@ -231,6 +225,11 @@ describeCompat("blobs", "FullCompat", (getTestObjectProvider, apis) => {
 				this.skip();
 			}
 
+			// Skip this test for standard r11s as its flaky and non-reproducible
+			if (provider.driver.type === "r11s" && provider.driver.endpointName !== "frs") {
+				this.skip();
+			}
+
 			const container = await provider.makeTestContainer({
 				...testContainerConfig,
 				runtimeOptions: {
@@ -244,7 +243,7 @@ describeCompat("blobs", "FullCompat", (getTestObjectProvider, apis) => {
 			});
 
 			const dataStore = await getContainerEntryPointBackCompat<ITestDataObject>(container);
-			const blobOpP = new Promise<void>((resolve, reject) =>
+			const blobOpP = timeoutPromise((resolve, reject) =>
 				dataStore._context.containerRuntime.on("op", (op) => {
 					if (op.type === ContainerMessageType.BlobAttach) {
 						if ((op.metadata as { blobId?: unknown } | undefined)?.blobId) {
@@ -278,8 +277,10 @@ describeCompat("blobs", "NoCompat", (getTestObjectProvider, apis) => {
 	]);
 
 	let provider: ITestObjectProvider;
+	let testSnapshotCache: TestSnapshotCache;
 	beforeEach("getTestObjectProvider", async function () {
-		provider = getTestObjectProvider();
+		testSnapshotCache = new TestSnapshotCache();
+		provider = getTestObjectProvider({ persistedCache: testSnapshotCache });
 		// Currently FRS does not support blob API.
 		if (provider.driver.type === "routerlicious" && provider.driver.endpointName === "frs") {
 			this.skip();
@@ -346,6 +347,8 @@ describeCompat("blobs", "NoCompat", (getTestObjectProvider, apis) => {
 			});
 		});
 
+		// Make sure the next container loads from the network so as to get latest snapshot.
+		testSnapshotCache.clearCache();
 		const container2 = await provider.loadTestContainer(testContainerConfig);
 		const snapshot2 = (container2 as any).runtime.blobManager.summarize();
 		assert.strictEqual(snapshot2.stats.treeNodeCount, 1);
@@ -447,6 +450,9 @@ function serializationTests({
 							loaderProps: {
 								detachedBlobStorage,
 								options: { summarizeProtocolTree },
+								configProvider: createTestConfigProvider({
+									"Fluid.Container.MemoryBlobStorageEnabled": true,
+								}),
 							},
 						});
 						const container = await loader.createDetachedContainer(
@@ -499,7 +505,12 @@ function serializationTests({
 			it("serialize/rehydrate container with blobs", async function () {
 				const loader = provider.makeTestLoader({
 					...testContainerConfig,
-					loaderProps: { detachedBlobStorage },
+					loaderProps: {
+						detachedBlobStorage,
+						configProvider: createTestConfigProvider({
+							"Fluid.Container.MemoryBlobStorageEnabled": true,
+						}),
+					},
 				});
 				const serializeContainer = await loader.createDetachedContainer(
 					provider.defaultCodeDetails,
@@ -548,10 +559,10 @@ function serializationTests({
 					loaderProps: {
 						detachedBlobStorage,
 						documentServiceFactory,
-						configProvider: {
-							getRawConfig: (name) =>
-								name === "Fluid.Container.RetryOnAttachFailure" ? true : undefined,
-						},
+						configProvider: createTestConfigProvider({
+							"Fluid.Container.MemoryBlobStorageEnabled": true,
+							"Fluid.Container.RetryOnAttachFailure": true,
+						}),
 					},
 				});
 				const serializeContainer = await loader.createDetachedContainer(
@@ -602,13 +613,19 @@ function serializationTests({
 				ContainerCloseUsageError,
 				async function () {
 					// test with and without offline load enabled
-					const offlineCfg = configProvider({
+					const offlineCfg = {
 						"Fluid.Container.enableOfflineLoad": true,
-					});
+					};
 					for (const cfg of [undefined, offlineCfg]) {
 						const loader = provider.makeTestLoader({
 							...testContainerConfig,
-							loaderProps: { detachedBlobStorage, configProvider: cfg },
+							loaderProps: {
+								detachedBlobStorage,
+								configProvider: createTestConfigProvider({
+									"Fluid.Container.MemoryBlobStorageEnabled": true,
+									...offlineCfg,
+								}),
+							},
 						});
 						const detachedContainer = await loader.createDetachedContainer(
 							provider.defaultCodeDetails,
@@ -673,7 +690,12 @@ function serializationTests({
 				async function () {
 					const loader = provider.makeTestLoader({
 						...testContainerConfig,
-						loaderProps: { detachedBlobStorage },
+						loaderProps: {
+							detachedBlobStorage,
+							configProvider: createTestConfigProvider({
+								"Fluid.Container.MemoryBlobStorageEnabled": true,
+							}),
+						},
 					});
 					const serializeContainer = await loader.createDetachedContainer(
 						provider.defaultCodeDetails,
@@ -722,7 +744,12 @@ function serializationTests({
 				async function () {
 					const loader = provider.makeTestLoader({
 						...testContainerConfig,
-						loaderProps: { detachedBlobStorage },
+						loaderProps: {
+							detachedBlobStorage,
+							configProvider: createTestConfigProvider({
+								"Fluid.Container.MemoryBlobStorageEnabled": true,
+							}),
+						},
 					});
 					let container = await loader.createDetachedContainer(provider.defaultCodeDetails);
 

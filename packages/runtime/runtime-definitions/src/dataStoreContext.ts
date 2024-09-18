@@ -45,6 +45,7 @@ import type {
 
 /**
  * Runtime flush mode handling
+ * @legacy
  * @alpha
  */
 export enum FlushMode {
@@ -82,6 +83,7 @@ export enum FlushModeExperimental {
 /**
  * This tells the visibility state of a Fluid object. It basically tracks whether the object is not visible, visible
  * locally within the container only or visible globally to all clients.
+ * @legacy
  * @alpha
  */
 export const VisibilityState = {
@@ -109,12 +111,15 @@ export const VisibilityState = {
 	GloballyVisible: "GloballyVisible",
 };
 /**
+ * @legacy
  * @alpha
  */
 export type VisibilityState = (typeof VisibilityState)[keyof typeof VisibilityState];
 
 /**
+ * @legacy
  * @alpha
+ * @sealed
  */
 export interface IContainerRuntimeBaseEvents extends IEvent {
 	(event: "batchBegin", listener: (op: ISequencedDocumentMessage) => void);
@@ -136,6 +141,7 @@ export interface IContainerRuntimeBaseEvents extends IEvent {
  * the `IContainerRuntime.getAliasedDataStoreEntryPoint` function. The current datastore should be discarded
  * and will be garbage collected. The current datastore cannot be aliased to a different value.
  * 'AlreadyAliased' - the datastore has already been previously bound to another alias name.
+ * @legacy
  * @alpha
  */
 export type AliasResult = "Success" | "Conflict" | "AlreadyAliased";
@@ -145,6 +151,7 @@ export type AliasResult = "Success" | "Conflict" | "AlreadyAliased";
  * - Handle to the data store's entryPoint
  * - Fluid router for the data store
  * - Can be assigned an alias
+ * @legacy
  * @alpha
  */
 export interface IDataStore {
@@ -168,7 +175,9 @@ export interface IDataStore {
 /**
  * A reduced set of functionality of IContainerRuntime that a data store context/data store runtime will need
  * TODO: this should be merged into IFluidDataStoreContext
+ * @legacy
  * @alpha
+ * @sealed
  */
 export interface IContainerRuntimeBase extends IEventProvider<IContainerRuntimeBaseEvents> {
 	readonly baseLogger: ITelemetryBaseLogger;
@@ -230,6 +239,14 @@ export interface IContainerRuntimeBase extends IEventProvider<IContainerRuntimeB
 	): IFluidDataStoreContextDetached;
 
 	/**
+	 * Returns the aliased data store's entryPoint, given the alias.
+	 * @param alias - The alias for the data store.
+	 * @returns The data store's entry point ({@link @fluidframework/core-interfaces#IFluidHandle}) if it exists and is aliased.
+	 * Returns undefined if no data store has been assigned the given alias.
+	 */
+	getAliasedDataStoreEntryPoint(alias: string): Promise<IFluidHandle<FluidObject> | undefined>;
+
+	/**
 	 * Get an absolute url for a provided container-relative request.
 	 * Returns undefined if the container or data store isn't attached to storage.
 	 * @param relativeUrl - A relative request within the container
@@ -281,6 +298,7 @@ export interface IContainerRuntimeBase extends IEventProvider<IContainerRuntimeB
  *
  * Functionality include attach, snapshot, op/signal processing, request routes, expose an entryPoint,
  * and connection state notifications
+ * @legacy
  * @alpha
  */
 export interface IFluidDataStoreChannel extends IDisposable {
@@ -374,6 +392,7 @@ export interface IFluidDataStoreChannel extends IDisposable {
 }
 
 /**
+ * @legacy
  * @alpha
  */
 export type CreateChildSummarizerNodeFn = (
@@ -391,6 +410,7 @@ export type CreateChildSummarizerNodeFn = (
  *
  * This layout is temporary, as {@link IFluidParentContext} and {@link IFluidDataStoreContext} will converge.
  *
+ * @legacy
  * @alpha
  */
 export interface IFluidParentContext
@@ -421,7 +441,13 @@ export interface IFluidParentContext
 	 */
 	readonly scope: FluidObject;
 
+	/**
+	 * @deprecated this functionality has been removed.
+	 */
 	readonly gcThrowOnTombstoneUsage: boolean;
+	/**
+	 * @deprecated this functionality has been removed.
+	 */
 	readonly gcTombstoneEnforcementAllowed: boolean;
 
 	/**
@@ -519,6 +545,7 @@ export interface IFluidParentContext
 /**
  * Represents the context for the data store. It is used by the data store runtime to
  * get information and call functionality to the container.
+ * @legacy
  * @alpha
  */
 export interface IFluidDataStoreContext extends IFluidParentContext {
@@ -553,6 +580,7 @@ export interface IFluidDataStoreContext extends IFluidParentContext {
 }
 
 /**
+ * @legacy
  * @alpha
  */
 export interface IFluidDataStoreContextDetached extends IFluidDataStoreContext {

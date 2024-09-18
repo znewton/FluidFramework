@@ -69,7 +69,9 @@ import {
 	createChildMonitoringContext,
 	extractSafePropertiesFromMessage,
 	tagCodeArtifacts,
+	type ITelemetryPropertiesExt,
 } from "@fluidframework/telemetry-utils/internal";
+import { v4 as uuid } from "uuid";
 
 import {
 	DeletedResponseHeaderKey,
@@ -113,14 +115,10 @@ export enum RuntimeHeaders {
 }
 
 /** True if a tombstoned object should be returned without erroring
+ * @legacy
  * @alpha
  */
 export const AllowTombstoneRequestHeaderKey = "allowTombstone"; // Belongs in the enum above, but avoiding the breaking change
-/**
- * [IRRELEVANT IF throwOnInactiveLoad OPTION NOT SET] True if an inactive object should be returned without erroring
- * @internal
- */
-export const AllowInactiveRequestHeaderKey = "allowInactive"; // Belongs in the enum above, but avoiding the breaking change
 
 type PendingAliasResolve = (success: boolean) => void;
 
@@ -210,7 +208,7 @@ export function wrapContext(context: IFluidParentContext): IFluidParentContext {
  * @param parentContext - the {@link IFluidParentContext} to wrap
  * @returns A wrapped {@link IFluidParentContext}
  */
-export function wrapContextForInnerChannel(
+function wrapContextForInnerChannel(
 	id: string,
 	parentContext: IFluidParentContext,
 ): IFluidParentContext {
@@ -610,20 +608,28 @@ export class ChannelCollection implements IFluidDataStoreChannel, IDisposable {
 	 * Please note that above mentioned functions have the implementation they have (allowing #2) due to #1.
 	 */
 	protected createDataStoreId(): string {
-		// We use three non-overlapping namespaces:
-		// - detached state: even numbers
-		// - attached state: odd numbers
-		// - uuids
-		// In first two cases we will encode result as strings in more compact form.
-		if (this.parentContext.attachState === AttachState.Detached) {
-			// container is detached, only one client observes content,  no way to hit collisions with other clients.
-			return encodeCompactIdToString(2 * this.contexts.size);
+		/**
+		 * There is currently a bug where certain data store ids such as "[" are getting converted to ASCII characters
+		 * in the snapshot.
+		 * So, return short ids only if explicitly enabled via feature flags. Else, return uuid();
+		 */
+		if (this.mc.config.getBoolean("Fluid.Runtime.UseShortIds") === true) {
+			// We use three non-overlapping namespaces:
+			// - detached state: even numbers
+			// - attached state: odd numbers
+			// - uuids
+			// In first two cases we will encode result as strings in more compact form.
+			if (this.parentContext.attachState === AttachState.Detached) {
+				// container is detached, only one client observes content,  no way to hit collisions with other clients.
+				return encodeCompactIdToString(2 * this.contexts.size);
+			}
+			const id = this.parentContext.containerRuntime.generateDocumentUniqueId();
+			if (typeof id === "number") {
+				return encodeCompactIdToString(2 * id + 1);
+			}
+			return id;
 		}
-		const id = this.parentContext.containerRuntime.generateDocumentUniqueId();
-		if (typeof id === "number") {
-			return encodeCompactIdToString(2 * id + 1);
-		}
-		return id;
+		return uuid();
 	}
 
 	public createDetachedDataStore(
@@ -795,6 +801,9 @@ export class ChannelCollection implements IFluidDataStoreChannel, IDisposable {
 			makeLocallyVisibleFn: () => this.makeDataStoreLocallyVisible(id),
 			snapshotTree,
 		});
+		// add to the list of bound or remoted, as this context must be bound
+		// to had an attach message sent, and is the non-detached case is remoted.
+		this.contexts.addBoundOrRemoted(dataStoreContext);
 
 		// realize the local context, as local contexts shouldn't be delay
 		// loaded, as this client is playing the role of creating client,
@@ -802,9 +811,6 @@ export class ChannelCollection implements IFluidDataStoreChannel, IDisposable {
 		const channel = await dataStoreContext.realize();
 		await channel.entryPoint.get();
 
-		// add to the list of bound or remoted, as this context must be bound
-		// to had an attach message sent, and is the non-detached case is remoted.
-		this.contexts.addBoundOrRemoted(dataStoreContext);
 		if (this.parentContext.attachState !== AttachState.Detached) {
 			// if the client is not detached put in the pending attach list
 			// so that on ack of the stashed op, the context is found.
@@ -1172,6 +1178,7 @@ export class ChannelCollection implements IFluidDataStoreChannel, IDisposable {
 	 */
 	private async visitContextsDuringSummary(
 		visitor: (contextId: string, context: FluidDataStoreContext) => Promise<void>,
+		telemetryProps: ITelemetryPropertiesExt,
 	): Promise<void> {
 		for (const [contextId, context] of this.contexts) {
 			// Summarizer client and hence GC works only with clients with no local changes. A data store in
@@ -1187,7 +1194,23 @@ export class ChannelCollection implements IFluidDataStoreChannel, IDisposable {
 			}
 
 			if (context.attachState === AttachState.Attached) {
+				// If summary / getGCData results in this data store's realization, let GC know so that it can log in
+				// case the data store is not referenced. This will help identifying scenarios that we see today where
+				// unreferenced data stores are being loaded.
+				const contextLoadedBefore = context.isLoaded;
+				const trailingOpCount = context.pendingCount;
+
 				await visitor(contextId, context);
+
+				if (!contextLoadedBefore && context.isLoaded) {
+					this.gcNodeUpdated({
+						node: { type: "DataStore", path: `/${context.id}` },
+						reason: "Realized",
+						packagePath: context.packagePath,
+						timestampMs: undefined, // This will be added by the parent context if needed.
+						additionalProps: { trailingOpCount, ...telemetryProps },
+					});
+				}
 			}
 		}
 	}
@@ -1203,6 +1226,7 @@ export class ChannelCollection implements IFluidDataStoreChannel, IDisposable {
 				const contextSummary = await context.summarize(fullTree, trackState, telemetryContext);
 				summaryBuilder.addWithStats(contextId, contextSummary);
 			},
+			{ fullTree, realizedDuring: "summarize" },
 		);
 		return summaryBuilder.getSummaryTree();
 	}
@@ -1229,6 +1253,7 @@ export class ChannelCollection implements IFluidDataStoreChannel, IDisposable {
 				// This also gradually builds the id of each node to be a path from the root.
 				builder.prefixAndAddNodes(contextId, contextGCData.gcNodes);
 			},
+			{ fullGC, realizedDuring: "getGCData" },
 		);
 
 		// Get the outbound routes and add a GC node for this channel.
@@ -1266,9 +1291,12 @@ export class ChannelCollection implements IFluidDataStoreChannel, IDisposable {
 			this.mc.logger.sendTelemetryEvent({
 				eventName: "GC_DeletingLoadedDataStore",
 				...tagCodeArtifacts({
-					id: dataStoreId,
+					id: `/${dataStoreId}`, // Make the id consistent with GC node path format by prefixing a slash.
 					pkg: dataStoreContext.packagePath.join("/"),
 				}),
+				details: {
+					aliased: this.aliasedDataStores.has(dataStoreId),
+				},
 			});
 		}
 
@@ -1413,14 +1441,10 @@ export class ChannelCollection implements IFluidDataStoreChannel, IDisposable {
 		if (typeof request.headers?.[AllowTombstoneRequestHeaderKey] === "boolean") {
 			headerData.allowTombstone = request.headers[AllowTombstoneRequestHeaderKey];
 		}
-		if (typeof request.headers?.[AllowInactiveRequestHeaderKey] === "boolean") {
-			headerData.allowInactive = request.headers[AllowInactiveRequestHeaderKey];
-		}
 
-		// We allow Tombstone/Inactive requests for sub-DataStore objects
+		// We allow Tombstone requests for sub-DataStore objects
 		if (requestForChild) {
 			headerData.allowTombstone = true;
-			headerData.allowInactive = true;
 		}
 
 		await this.waitIfPendingAlias(id);

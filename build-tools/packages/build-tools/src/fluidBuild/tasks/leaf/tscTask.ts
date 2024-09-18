@@ -3,16 +3,15 @@
  * Licensed under the MIT License.
  */
 
-import * as assert from "assert";
-import * as fs from "fs";
-import path from "path";
+import * as assert from "node:assert";
+import { type BigIntStats, type Stats, existsSync, lstatSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import isEqual from "lodash.isequal";
 import * as tsTypes from "typescript";
 
-import { readFileSync } from "fs-extra";
-import { getInstalledPackageVersion, getRecursiveFiles } from "../../../common/taskUtils";
-import { TscUtil, getTscUtils } from "../../../common/tscUtils";
-import { existsSync, readFileAsync } from "../../../common/utils";
+import { TscUtil, getTscUtils } from "../../tscUtils";
+import { getInstalledPackageVersion, getRecursiveFiles } from "../taskUtils";
 import { LeafTask, LeafWithDoneFileTask } from "./leafTask";
 
 interface ITsBuildInfo {
@@ -34,7 +33,7 @@ export class TscTask extends LeafTask {
 	private _tsConfig: tsTypes.ParsedCommandLine | undefined;
 	private _tsConfigFullPath: string | undefined;
 	private _projectReference: TscTask | undefined;
-	private _sourceStats: (fs.Stats | fs.BigIntStats)[] | undefined;
+	private _sourceStats: (Stats | BigIntStats)[] | undefined;
 	private _tscUtils: TscUtil | undefined;
 
 	private getTscUtils() {
@@ -52,6 +51,7 @@ export class TscTask extends LeafTask {
 			// `tsc -b` by design doesn't rebuild if dependent packages changed
 			// but not a referenced project. Just force it if we detected the change and
 			// invoke the build.
+			// `--force` is not fully supported, due to workaround in createTscUtil, so this may not actually work.
 			return `${this.command} --force`;
 		}
 		return this.command;
@@ -215,10 +215,10 @@ export class TscTask extends LeafTask {
 
 	private remapSrcDeclFile(fullPath: string, config: tsTypes.ParsedCommandLine) {
 		if (!this._sourceStats) {
-			this._sourceStats = config ? config.fileNames.map((v) => fs.lstatSync(v)) : [];
+			this._sourceStats = config ? config.fileNames.map((v) => lstatSync(v)) : [];
 		}
 
-		const stat = fs.lstatSync(fullPath);
+		const stat = lstatSync(fullPath);
 		if (this._sourceStats.some((value) => isEqual(value, stat))) {
 			const parsed = path.parse(fullPath);
 			const directory = parsed.dir;
@@ -418,7 +418,7 @@ export class TscTask extends LeafTask {
 			const tsBuildInfoFileFullPath = this.tsBuildInfoFileFullPath;
 			if (tsBuildInfoFileFullPath && existsSync(tsBuildInfoFileFullPath)) {
 				try {
-					const tsBuildInfo = JSON.parse(await readFileAsync(tsBuildInfoFileFullPath, "utf8"));
+					const tsBuildInfo = JSON.parse(await readFile(tsBuildInfoFileFullPath, "utf8"));
 					if (
 						tsBuildInfo.program &&
 						tsBuildInfo.program.fileNames &&
@@ -489,7 +489,7 @@ export abstract class TscDependentTask extends LeafWithDoneFileTask {
 			for (const configFile of configFiles) {
 				if (existsSync(configFile)) {
 					// Include the config file if it exists so that we can detect changes
-					configs.push(await readFileAsync(configFile, "utf8"));
+					configs.push(await readFile(configFile, "utf8"));
 				}
 			}
 
@@ -566,7 +566,7 @@ export class TscMultiTask extends LeafWithDoneFileTask {
 			// Assume that the remaining arguments are project paths
 			const tscMultiProjects = commandArgs.filter((arg) => !arg.startsWith("-"));
 			const tscMultiConfig = JSON.parse(
-				await readFileAsync(tscMultiConfigFile, "utf-8"),
+				await readFile(tscMultiConfigFile, "utf-8"),
 			) as TscMultiConfig;
 
 			// Command line projects replace any in config projects
@@ -611,7 +611,7 @@ export class TscMultiTask extends LeafWithDoneFileTask {
 				return { name, hash };
 			});
 
-			const buildInfo = readFileSync(tsbuildinfoPath).toString();
+			const buildInfo = (await readFile(tsbuildinfoPath)).toString();
 			const version = await getInstalledPackageVersion("tsc-multi", this.node.pkg.directory);
 			const hashes = await Promise.all(hashesP);
 			const result = JSON.stringify({

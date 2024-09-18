@@ -3,7 +3,6 @@
  * Licensed under the MIT License.
  */
 
-import type { IRef } from "@fluidframework/gitresources";
 import {
 	ICreateRefParamsExternal,
 	IPatchRefParamsExternal,
@@ -18,23 +17,21 @@ import {
 	getExternalWriterParams,
 	getFilesystemManagerFactory,
 	getGitManagerFactoryParamsFromConfig,
-	getLatestFullSummaryDirectory,
 	getLumberjackBasePropertiesFromRepoManagerParams,
-	getRepoInfoFromParamsAndStorageConfig,
 	getRepoManagerFromWriteAPI,
 	getRepoManagerParamsFromRequest,
 	IFileSystemManagerFactories,
 	IRepositoryManagerFactory,
 	isRepoNotExistsError,
 	logAndThrowApiError,
-	retrieveLatestFullSummaryFromStorage,
-	WholeSummaryConstants,
+	retrieveLazyRepoSummary,
+	spoofLazyRepoRef,
 } from "../../utils";
 
 /**
  * Simple method to convert from a path id to the git reference ID
  */
-function getRefId(id): string {
+export function getRefId(id: string): string {
 	return `refs/${id}`;
 }
 
@@ -79,6 +76,7 @@ export function create(
 	// eslint-disable-next-line @typescript-eslint/no-misused-promises
 	router.get("/repos/:owner/:repo/git/refs/*", async (request, response, next) => {
 		const repoManagerParams = getRepoManagerParamsFromRequest(request);
+		const refId = getRefId(request.params[0]);
 		const resultP = repoManagerFactory
 			.open(repoManagerParams)
 			.then(async (repoManager) => {
@@ -97,57 +95,35 @@ export function create(
 					repoPerDocEnabled,
 				);
 				return repoManager.getRef(
-					getRefId(request.params[0]),
+					refId,
 					getExternalWriterParams(request.query?.config as string),
 				);
 			})
 			.catch(async (error) => {
-				if (lazyRepoInitCompatEnabled && isRepoNotExistsError(error)) {
-					const fileSystemManagerFactory = getFilesystemManagerFactory(
-						fileSystemManagerFactories,
-						repoManagerParams.isEphemeralContainer,
-					);
-					const { directoryPath } = getRepoInfoFromParamsAndStorageConfig(
-						repoPerDocEnabled,
-						repoManagerParams,
-						storageDirectoryConfig,
-					);
-					const fileSystemManager = fileSystemManagerFactory.create({
-						...repoManagerParams.fileSystemManagerParams,
-						rootDir: directoryPath,
-					});
-					const latestFullSummaryDirectory = getLatestFullSummaryDirectory(
-						directoryPath,
-						repoManagerParams.storageRoutingId?.documentId ??
-							repoManagerParams.repoName,
-					);
-					const lumberjackProperties = {
-						...getLumberjackBasePropertiesFromRepoManagerParams(repoManagerParams),
-					};
+				if (!(lazyRepoInitCompatEnabled && isRepoNotExistsError(error))) {
+					// A Lazy Repo will always throw a repo not exists error if only the first summary
+					// has been written. In this case, we can try to retrieve the lazy repo summary
+					// and return a spoofed ref.
 					try {
-						const latestFullSummaryFromStorage =
-							await retrieveLatestFullSummaryFromStorage(
-								fileSystemManager,
-								latestFullSummaryDirectory,
-								lumberjackProperties,
-							);
-						if (!latestFullSummaryFromStorage) {
+						// Note: This could probably be optimized to only check if
+						// the summary exists instead of retrieving it.
+						const lazyRepoSummary = await retrieveLazyRepoSummary(
+							fileSystemManagerFactories,
+							repoManagerParams,
+							{ storageDirectoryConfig, repoPerDocEnabled },
+						);
+						if (lazyRepoSummary?.trees[0]?.id === undefined) {
 							throw new NetworkError(404, "No latest full summary found");
 						}
-						const dummyRef: IRef = {
-							ref: getRefId(request.params[0]),
-							url: `/repos/${repoManagerParams.repoOwner}/${
-								repoManagerParams.repoName
-							}/git/refs/${getRefId(request.params[0])}`,
-							object: {
-								sha: WholeSummaryConstants.InitialSummarySha,
-								type: "commit",
-								url: `/repos/${repoManagerParams.repoOwner}/${repoManagerParams.repoName}/git/commits/${WholeSummaryConstants.InitialSummarySha}`,
-							},
-						};
-						return dummyRef;
+						// If we have a lazy repo, we can return a dummy commit
+						return spoofLazyRepoRef(refId, repoManagerParams);
 					} catch (lazyRepoRecoveryError: unknown) {
-						Lumberjack.error(
+						const lumberjackProperties = {
+							...getLumberjackBasePropertiesFromRepoManagerParams(repoManagerParams),
+						};
+						// If this should be a lazy repo but we failed to retrieve the summary,
+						// log the error and continue to throw the original error.
+						Lumberjack.warning(
 							"Failed to spoof ref for lazy repo",
 							lumberjackProperties,
 							lazyRepoRecoveryError,

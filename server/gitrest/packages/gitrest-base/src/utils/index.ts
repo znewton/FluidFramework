@@ -33,7 +33,6 @@ export {
 } from "./gitWholeSummaryManager";
 export {
 	checkSoftDeleted,
-	InMemoryRepoManagerFactory,
 	exists,
 	getExternalWriterParams,
 	getFilesystemManagerFactory,
@@ -56,9 +55,17 @@ export {
 	validateBlobEncoding,
 } from "./helpers";
 export {
+	InMemoryRepoManagerFactory,
+} from "./inMemoryRepositoryManager";
+export {
 	IsomorphicGitManagerFactory,
 	IsomorphicGitRepositoryManager,
 } from "./isomorphicgitManager";
+export {
+	spoofLazyRepoInitialCommit,
+	spoofLazyRepoRef,
+	retrieveLazyRepoSummary,
+} from "./lazyRepoHelpers";
 export { RedisFsConfig, RedisFsManager } from "./redisFs";
 export {
 	Constants as WholeSummaryConstants,

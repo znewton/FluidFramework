@@ -13,7 +13,7 @@ export const Constants = Object.freeze({
 	 */
 	FullTreeBlobPath: ".fullTree",
 	/**
-	 * Sha256 hash of "initialsummarysha". Used to refer to the initial summary when using lazy git repo feature.
+	 * Sha1 hash of "initialsummarysha". Used to refer to the initial summary when using lazy git repo feature.
 	 */
-	InitialSummarySha: "8867f5f7386bad83b7a0fd49d4906046311cbe3c520bac21f225e86abd8055b6",
+	InitialSummarySha: "0b4e9f3268009e4a5dc7a9caec4d8de9ee4ce7e9",
 });

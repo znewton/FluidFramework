@@ -26,7 +26,8 @@ import {
 	writeChannelSummary,
 	writeContainerSummary,
 } from "./wholeSummary";
-import { getSoftDeletedMarkerPath, type InMemoryRepoManagerFactory } from "./helpers";
+import { getSoftDeletedMarkerPath } from "./helpers";
+import type { InMemoryRepoManagerFactory } from "./inMemoryRepositoryManager";
 
 const DefaultSummaryWriteFeatureFlags: ISummaryWriteFeatureFlags = {
 	enableLowIoWrite: false,

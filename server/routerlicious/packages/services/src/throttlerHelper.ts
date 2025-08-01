@@ -11,77 +11,83 @@ import type {
 	IThrottlingMetrics,
 } from "@fluidframework/server-services-core";
 
+import {
+	BaseTokenBucket,
+	type ITokenBucketConfig,
+	type ITokenBucketState,
+} from "./baseTokenBucket";
+
 /**
  * Implements the Token Bucket algorithm to calculate rate-limiting for throttling operations.
+ * Now uses shared base classes for consistent token bucket behavior.
  * @internal
  */
-export class ThrottlerHelper implements IThrottlerHelper {
+export class ThrottlerHelper extends BaseTokenBucket implements IThrottlerHelper {
 	constructor(
 		private readonly throttleAndUsageStorageManager: IThrottleAndUsageStorageManager,
-		private readonly rateInOperationsPerMs: number = 1000000,
-		private readonly operationBurstLimit: number = 1000000,
-		private readonly minCooldownIntervalInMs: number = 1000000,
-	) {}
+		rateInOperationsPerMs: number = 1000000,
+		operationBurstLimit: number = 1000000,
+		minCooldownIntervalInMs: number = 1000000,
+	) {
+		const config: ITokenBucketConfig = {
+			tokensPerMs: rateInOperationsPerMs,
+			maxTokens: operationBurstLimit,
+			minReplenishIntervalMs: minCooldownIntervalInMs,
+		};
+		super(config);
+	}
 
 	public async updateCount(
 		id: string,
-		count: number,
+		weight: number = 1,
 		usageStorageId?: string,
 		usageData?: IUsageData,
 	): Promise<IThrottlerResponse> {
 		const now = Date.now();
-		const defaultThrottlingMetric: IThrottlingMetrics = {
-			count: this.operationBurstLimit,
-			lastCoolDownAt: now,
-			throttleStatus: false,
-			throttleReason: "",
-			retryAfterInMs: 0,
+
+		// Get or create the current bucket state
+		const storedMetric = await this.throttleAndUsageStorageManager.getThrottlingMetric(id);
+		const currentState = storedMetric
+			? this.getBucketStateFromStorage(storedMetric)
+			: this.createInitialState(now);
+
+		// Attempt to consume tokens using the base class logic
+		const result = this.consumeTokens(currentState, weight, now);
+
+		// Convert result back to storage format and save
+		const updatedMetric = this.convertToThrottlingMetrics(result.newState);
+		await this.setThrottlingMetricAndUsageData(id, updatedMetric, usageStorageId, usageData);
+
+		return this.getThrottlerResponseFromThrottlingMetrics(updatedMetric);
+	}
+
+	/**
+	 * Convert stored throttling metrics to BaseTokenBucket state format
+	 */
+	private getBucketStateFromStorage(throttlingMetric: IThrottlingMetrics): ITokenBucketState {
+		return {
+			// In the old system, 'count' represented available tokens in the bucket
+			// This is the same as BaseTokenBucket's 'tokens' field
+			tokens: throttlingMetric.count,
+			lastReplenishAt: throttlingMetric.lastCoolDownAt,
+			isThrottled: throttlingMetric.throttleStatus,
+			throttleReason: throttlingMetric.throttleReason,
+			retryAfterInMs: throttlingMetric.retryAfterInMs,
 		};
+	}
 
-		const throttlingMetric: IThrottlingMetrics =
-			(await this.throttleAndUsageStorageManager.getThrottlingMetric(id)) ??
-			defaultThrottlingMetric;
-
-		// Exit early if already throttled and no chance of being unthrottled
-		const retryAfterInMs = this.getRetryAfterInMs(throttlingMetric, now);
-		if (retryAfterInMs > 0) {
-			throttlingMetric.retryAfterInMs = retryAfterInMs;
-			await this.setThrottlingMetricAndUsageData(
-				id,
-				throttlingMetric,
-				usageStorageId,
-				usageData,
-			);
-			return this.getThrottlerResponseFromThrottlingMetrics(throttlingMetric);
-		}
-
-		// replenish "tokens" if possible
-		const amountToReplenish = this.getTokenReplenishAmount(throttlingMetric, now);
-		if (amountToReplenish > 0) {
-			throttlingMetric.count += amountToReplenish;
-			throttlingMetric.lastCoolDownAt = now;
-		}
-
-		// adjust "tokens" based on given count
-		throttlingMetric.count -= count;
-
-		// throttle if "token bucket" is empty
-		const newRetryAfterInMs = this.getRetryAfterInMs(throttlingMetric, now);
-		if (newRetryAfterInMs > 0) {
-			throttlingMetric.throttleStatus = true;
-			throttlingMetric.throttleReason = `Throttling count exceeded by ${Math.abs(
-				throttlingMetric.count,
-			)} at ${new Date(now).toISOString()}`;
-			throttlingMetric.retryAfterInMs = newRetryAfterInMs;
-		} else {
-			throttlingMetric.throttleStatus = false;
-			throttlingMetric.throttleReason = "";
-			throttlingMetric.retryAfterInMs = 0;
-		}
-
-		await this.setThrottlingMetricAndUsageData(id, throttlingMetric, usageStorageId, usageData);
-
-		return this.getThrottlerResponseFromThrottlingMetrics(throttlingMetric);
+	/**
+	 * Convert BaseTokenBucket state to stored throttling metrics format
+	 */
+	private convertToThrottlingMetrics(state: ITokenBucketState): IThrottlingMetrics {
+		return {
+			// Convert back to the legacy format where 'count' represents available tokens
+			count: state.tokens,
+			lastCoolDownAt: state.lastReplenishAt,
+			throttleStatus: state.isThrottled,
+			throttleReason: state.throttleReason,
+			retryAfterInMs: state.retryAfterInMs,
+		};
 	}
 
 	public async getThrottleStatus(id: string): Promise<IThrottlerResponse | undefined> {
@@ -116,36 +122,5 @@ export class ThrottlerHelper implements IThrottlerHelper {
 			throttleReason: throttlingMetric.throttleReason,
 			retryAfterInMs: throttlingMetric.retryAfterInMs,
 		};
-	}
-
-	private getTokenReplenishAmount(throttlingMetric: IThrottlingMetrics, now: number): number {
-		const timeSinceLastCooldownInMs = now - throttlingMetric.lastCoolDownAt;
-		// replenish "tokens" at most once per minCooldownInterval
-		if (timeSinceLastCooldownInMs > this.minCooldownIntervalInMs) {
-			const tokensToReplenish = Math.floor(
-				timeSinceLastCooldownInMs * this.rateInOperationsPerMs,
-			);
-			// don't let the bucket overflow
-			if (tokensToReplenish + throttlingMetric.count > this.operationBurstLimit) {
-				return this.operationBurstLimit - throttlingMetric.count;
-			}
-			return tokensToReplenish;
-		}
-		return 0;
-	}
-
-	private getRetryAfterInMs(throttlingMetric: IThrottlingMetrics, now: number): number {
-		const tokenDebt = 0 - throttlingMetric.count;
-		const amountPossibleToReplenishNow = this.getTokenReplenishAmount(throttlingMetric, now);
-		const timeUntilNextCooldown =
-			throttlingMetric.lastCoolDownAt + this.minCooldownIntervalInMs - now;
-		const remainingTokenDebt = tokenDebt - amountPossibleToReplenishNow;
-		const timeUntilDebtReplenished = remainingTokenDebt / this.rateInOperationsPerMs;
-		if (timeUntilDebtReplenished <= 0) {
-			// no need to wait because tokens can be replenished to satisfactory amount
-			return timeUntilDebtReplenished;
-		}
-		// must at least wait until next cooldown
-		return Math.max(timeUntilNextCooldown, timeUntilDebtReplenished);
 	}
 }

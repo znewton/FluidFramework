@@ -1,0 +1,15 @@
+
+> @fluidframework/server-routerlicious-base@8.0.0 test /Users/zachnewton/Code/FluidFramework/server/routerlicious/packages/routerlicious-base
+> mocha --recursive "dist/test/**/*.spec.*js" src/test/alfred/api.spec.ts
+
+
+ Exception during run: TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".ts" for /Users/zachnewton/Code/FluidFramework/server/routerlicious/packages/routerlicious-base/src/test/alfred/api.spec.ts
+    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:160:9)
+    at defaultGetFormat (node:internal/modules/esm/get_format:203:36)
+    at defaultLoad (node:internal/modules/esm/load:143:22)
+    at async ModuleLoader.load (node:internal/modules/esm/loader:553:7)
+    at async ModuleLoader.moduleProvider (node:internal/modules/esm/loader:434:45)
+    at async link (node:internal/modules/esm/module_job:87:21) {
+  code: 'ERR_UNKNOWN_FILE_EXTENSION'
+}
+ ELIFECYCLE  Test failed. See above for more details.

@@ -37,8 +37,14 @@ import type {
 	ITenantManager,
 } from "@fluidframework/server-services-core";
 
-// Forked from DocumentStorage to remove to server dependencies and enable testing of other data stores.
+// Forked from DocumentStorage to remove server dependencies and enable testing of other data stores.
 /**
+ * @deprecated Prefer the lightweight factory `createMockDocumentStorage` for tests that only need
+ * basic `getDocument` behavior. This class reimplements significant production logic (summary/tree
+ * creation, quorum state) and should be phased out to reduce maintenance burden.
+ *
+ * If you need to simulate complex summary creation flows, consider stubbing only the specific
+ * `IDocumentStorage` methods your test touches instead of relying on this implementation.
  * @internal
  */
 export class TestDocumentStorage implements IDocumentStorage {

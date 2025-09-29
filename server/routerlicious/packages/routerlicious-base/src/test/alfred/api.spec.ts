@@ -17,7 +17,7 @@ import {
 	TestCache,
 	TestClusterDrainingStatusChecker,
 	TestDbFactory,
-	TestDocumentStorage,
+	createMockDocumentStorage,
 	TestFluidAccessTokenGenerator,
 	TestKafka,
 	TestNotImplementedDocumentRepository,
@@ -113,7 +113,22 @@ describe("Routerlicious", () => {
 				deltasCollectionName,
 				rawDeltasCollectionName,
 			);
-			const defaultStorage = new TestDocumentStorage(defaultDbManager, defaultTenantManager);
+			// Switched to lightweight mock storage (only getDocument is required for these tests)
+			const { storage: defaultStorage } = createMockDocumentStorage([
+				// seed existing document referenced by tests
+				{
+					_id: document1._id,
+					documentId: document1.documentId,
+					tenantId: document1.tenantId,
+					content: document1.content,
+					session: document1.session,
+					// fields used implicitly by app code or tests
+					createTime: Date.now(),
+					version: "0.1",
+					deli: "",
+					scribe: "",
+				} as any, // cast for partial shape sufficiency
+			]);
 			const defaultSingleUseTokenCache = new TestCache();
 			const scopes = [ScopeType.DocRead, ScopeType.DocWrite, ScopeType.SummaryWrite];
 			const tenantToken1 = `Basic ${generateToken(

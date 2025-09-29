@@ -1,3 +1,13 @@
+---
+applyTo: "**"
+---
+
+1. Whenever you run a command in the terminal, pipe the output to a file, output.txt, that you can read from.
+2. You should read the output.txt file to see the results of your commands.
+3. Make sure to overwrite each time so that it doesn't grow too big.
+4. There is a bug in the current version of Copilot that causes it to not read the output of commands correctly.
+5. This workaround allows you to read the output from the temporary file instead.
+
 ## Routerlicious AI Assistant Instructions
 
 Purpose: Enable an AI coding agent to be productive quickly in the `server/routerlicious` release group of Fluid Framework. Keep changes small, align with existing patterns, and use provided build/test tooling (fluid-build, flub, pnpm, docker compose).
@@ -27,6 +37,8 @@ Key microservice entrypoints (built JS in `packages/routerlicious/dist`):
 -   Install & build (from repo root folder `server/routerlicious`): `pnpm install` then `npm run build` (invokes `fluid-build -g server --task build`). Use `build:fast` for worker mode.
 -   Incremental compile only: `npm run build:compile`.
 -   Tests: `npm test` (fan-out to packages). Add `-- --grep <Pattern>` after test script for filtered mocha runs (e.g. `npm run test -- -- --grep Deli`). Coverage: `npm run test:coverage`.
+    -   To run tests for a specific package, it can be helpful to cd into that package folder and run `pnpm test` directly. (e.g. `cd packages/routerlicious` then `pnpm test -- --grep Deli`).
+-   Clean: `npm run clean` (removes `node_modules`, `dist`, `coverage`).
 -   Lint/format/policy gates: `npm run checks` (prettier, package lists, version check, layer policy, policy-check). Auto-fix style/policy: `npm run lint:fix`, `npm run policy-check:fix`.
 -   API docs generation sequence: build (extractor) -> `npm run build:gendocs`.
 -   IMPORTANT: Newly added or modified TypeScript tests must be (re)compiled before they will run; otherwise mocha executes stale `dist` output. Fast path: `pnpm run build:compile && pnpm run test` (or run the two commands separately). Do this before relying on grep-filtered iterations.

@@ -14,6 +14,7 @@ export { TestClientManager } from "./testClientManager";
 export { type ITestDbFactory, TestCollection, TestDb, TestDbFactory } from "./testCollection";
 export { TestContext } from "./testContext";
 export { TestDocumentStorage, writeSummaryTree } from "./testDocumentStorage";
+export { createMockDocumentStorage } from "./mockDocumentStorage";
 export { TestHistorian } from "./testHistorian";
 export { TestConsumer, TestKafka, TestProducer } from "./testKafka";
 export { type IEvent, TestPublisher, TestTopic } from "./testPublisher";

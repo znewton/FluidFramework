@@ -28,6 +28,7 @@ import {
 const DefaultSummaryWriteFeatureFlags: ISummaryWriteFeatureFlags = {
 	enableLowIoWrite: false,
 	optimizeForInitialSummary: false,
+	maxLowIoTreeSizeBytes: undefined,
 };
 
 export { isChannelSummary, isContainerSummary } from "./wholeSummary";

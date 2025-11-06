@@ -149,6 +149,7 @@ async function createSummary(
 	persistLatestFullEphemeralSummary = false,
 	enableLowIoWrite: "initial" | boolean = false,
 	optimizeForInitialSummary: boolean = false,
+	maxLowIoTreeSizeBytes: number | undefined = undefined,
 ): Promise<IWriteSummaryResponse | IWholeFlatSummary> {
 	const lumberjackProperties = {
 		...getLumberjackBasePropertiesFromRepoManagerParams(repoManagerParams),
@@ -163,6 +164,7 @@ async function createSummary(
 		{
 			enableLowIoWrite,
 			optimizeForInitialSummary,
+			maxLowIoTreeSizeBytes,
 		},
 	);
 
@@ -267,6 +269,8 @@ export function create(
 	const repoPerDocEnabled: boolean = store.get("git:repoPerDocEnabled") ?? false;
 	const enforceStrictPersistedFullSummaryReads: boolean =
 		store.get("git:enforceStrictPersistedFullSummaryReads") ?? false;
+
+	const maxLowIoTreeSizeBytes: number | undefined = store.get("git:maxBlobSizeBytes") ?? undefined;
 
 	/**
 	 * Retrieves a summary.
@@ -376,7 +380,7 @@ export function create(
 					rootDir: repoManager.path,
 				});
 				// A new document cannot already be soft-deleted.
-				if (!optimizeForInitialSummary) {
+				if (optimizeForInitialSummary !== true) {
 					await checkSoftDeleted(
 						fsManager,
 						repoManager.path,
@@ -395,6 +399,7 @@ export function create(
 					persistLatestFullEphemeralSummary,
 					enableLowIoWrite,
 					optimizeForInitialSummary,
+					maxLowIoTreeSizeBytes,
 				);
 			})().catch((error) => logAndThrowApiError(error, request, repoManagerParams));
 			handleResponse(resultP, response, undefined, undefined, 201);

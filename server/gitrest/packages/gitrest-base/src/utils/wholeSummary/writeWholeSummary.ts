@@ -4,13 +4,15 @@
  */
 
 import type { ICreateCommitParams, IRef } from "@fluidframework/gitresources";
-import type {
-	IWholeFlatSummary,
-	IWholeSummaryPayload,
-	IWriteSummaryResponse,
-	WholeSummaryTreeEntry,
+import {
+	NetworkError,
+	type IWholeFlatSummary,
+	type IWholeSummaryPayload,
+	type IWriteSummaryResponse,
+	type WholeSummaryTreeEntry,
 } from "@fluidframework/server-services-client";
 import { Lumberjack } from "@fluidframework/server-services-telemetry";
+import sizeof from "object-sizeof";
 
 import { GitRestLumberEventName } from "../gitrestTelemetryDefinitions";
 
@@ -52,6 +54,14 @@ export interface ISummaryWriteFeatureFlags {
 	 * to avoid unnecessary storage operations. This can improve performance when creating a new document.
 	 */
 	optimizeForInitialSummary: boolean;
+	/**
+	 * When writing low-io summaries, enforce a maximum size for the summary tree, which directly translates to the
+	 * size of the single summary blob written to storage.
+	 * If the size of the tree exceeds this limit, the write will fail with a 413 error.
+	 * This is useful to prevent excessively large summaries from being written.
+	 * When undefined or 0, there is no limit on the size of the summary tree.
+	 */
+	maxLowIoTreeSizeBytes: number | undefined;
 }
 
 /**
@@ -126,7 +136,7 @@ async function computeSummaryTreeEntries(
 async function writeSummaryTree(
 	payload: IWholeSummaryPayload,
 	documentRef: IRef | undefined,
-	options: IWholeSummaryOptions & { precomputeFullTree: boolean; useLowIoWrite: boolean },
+	options: IWholeSummaryOptions & { precomputeFullTree: boolean; useLowIoWrite: boolean; maxLowIoTreeSizeBytes: number | undefined },
 ): Promise<IFullGitTree> {
 	const writeSummaryTreeOptions: IWriteSummaryTreeOptions = {
 		repoManager: options.repoManager,
@@ -145,6 +155,22 @@ async function writeSummaryTree(
 		writeSummaryTreeOptions,
 		options,
 	);
+
+	if (
+		options.useLowIoWrite &&
+		options.maxLowIoTreeSizeBytes !== undefined &&
+		options.maxLowIoTreeSizeBytes > 0
+	) {
+		// Check size-of the tree entries to be written.
+		// Only compute once, hence the nested if statement, to avoid a 2nd possibly expensive sizeof() call for the error message.
+		const treeEntriesSize = sizeof(treeEntries);
+		if (treeEntriesSize > options.maxLowIoTreeSizeBytes) {
+			throw new NetworkError(
+				413,
+				`Summary tree size (${treeEntriesSize / 1_000_000} MB) exceeds limit (${options.maxLowIoTreeSizeBytes / 1_000_000} MB).`,
+			);
+	}
+	}
 
 	const writeSummaryTreeMetric = Lumberjack.newLumberMetric(
 		GitRestLumberEventName.WriteSummaryTree,
@@ -176,6 +202,7 @@ export async function writeChannelSummary(
 		...options,
 		precomputeFullTree: false,
 		useLowIoWrite,
+		maxLowIoTreeSizeBytes: featureFlags.maxLowIoTreeSizeBytes,
 	});
 	return {
 		isNew: false,
@@ -307,6 +334,7 @@ export async function writeContainerSummary(
 		...options,
 		precomputeFullTree: true,
 		useLowIoWrite,
+		maxLowIoTreeSizeBytes: featureFlags.maxLowIoTreeSizeBytes,
 	});
 
 	// Create a new commit referencing the container summary tree.

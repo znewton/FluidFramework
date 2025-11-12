@@ -11,6 +11,7 @@ import type {
 	WholeSummaryTreeEntry,
 } from "@fluidframework/server-services-client";
 import { Lumberjack } from "@fluidframework/server-services-telemetry";
+import sizeof from "object-sizeof";
 
 import { GitRestLumberEventName } from "../gitrestTelemetryDefinitions";
 
@@ -109,6 +110,7 @@ async function computeSummaryTreeEntries(
 			writeSummaryTreeOptions,
 			options,
 		);
+		computeSummaryTreeEntriesMetric.setProperty("summaryTreeSizeBytes", sizeof(treeEntries));
 		computeSummaryTreeEntriesMetric.success(
 			"Successfully computed low-io summary tree entries.",
 		);

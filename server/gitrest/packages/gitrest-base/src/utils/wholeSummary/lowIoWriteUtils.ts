@@ -28,6 +28,7 @@ import {
 } from "./coreWriteUtils";
 import type { IFullGitTree, IWholeSummaryOptions } from "./definitions";
 import { readSummary } from "./readWholeSummary";
+import sizeof from "object-sizeof";
 
 /**
  * Retrieve a git tree from storage, then write it into the in-memory filesystem.
@@ -100,6 +101,12 @@ async function computeInMemoryFullGitTree(
 			fullSummaryPayload,
 			inMemoryWriteSummaryTreeOptions,
 		);
+		Lumberjack.info("Read previous summary into memory for low-IO write.", {
+			...options.lumberjackProperties,
+			summaryTreeId: previousSummaryMemoryFullGitTree.tree.sha,
+			summaryBlobCount: Object.values(previousSummaryMemoryFullGitTree.blobs).length ?? 0,
+			summarySize: sizeof(previousSummaryMemoryFullGitTree),
+		});
 		for (const treeEntry of previousSummaryMemoryFullGitTree.tree.tree) {
 			// Update entry handle to object sha map for reference when writing summary handles.
 			inMemoryWriteSummaryTreeOptions.entryHandleToObjectShaCache.set(
@@ -131,6 +138,12 @@ async function computeInMemoryFullGitTree(
 		} else {
 			throw error;
 		}
+	});
+	Lumberjack.info("Wrote new summary into memory for low-IO write.", {
+		...options.lumberjackProperties,
+		summaryTreeId: inMemorySummaryFullGitTree.tree.sha,
+		summaryBlobCount: Object.values(inMemorySummaryFullGitTree.blobs).length ?? 0,
+		summarySize: sizeof(inMemorySummaryFullGitTree),
 	});
 	return inMemorySummaryFullGitTree;
 }

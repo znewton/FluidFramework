@@ -22,6 +22,7 @@ export interface IThrottlerResponse {
 export interface IThrottlingMetrics extends IThrottlerResponse {
 	count: number;
 	lastCoolDownAt: number;
+	version?: number;
 }
 
 /**

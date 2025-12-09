@@ -230,20 +230,24 @@ describe("DistributedTokenBucketThrottler", () => {
 				distributedTokenBucket: {
 					capacity: 10, // Lower distributed capacity
 					refillRatePerMs: 1,
-					minCooldownIntervalMs: 100,
+					minCooldownIntervalMs: 1000, // Longer cooldown to avoid refilling too quickly
 					distributedSyncIntervalInMs: 500,
 				},
 			};
 			const storageManager = new TestThrottleAndUsageStorageManager();
+			const id = "test-id";
 			const throttler = new DistributedTokenBucketThrottler(
 				storageManager,
 				undefined,
 				config,
 			);
-			const id = "test-id";
+
+			throttler.incrementCount(id, 1);
+			// Wait for initial set to complete.
+			await Sinon.clock.nextAsync();
 
 			// Consume tokens
-			for (let i = 0; i < 8; i++) {
+			for (let i = 0; i < 9; i++) {
 				throttler.incrementCount(id, 1);
 			}
 
@@ -258,7 +262,11 @@ describe("DistributedTokenBucketThrottler", () => {
 			// Verify distributed storage was updated
 			const stored = await storageManager.getThrottlingMetric(id);
 			assert.ok(stored, "Should have stored distributed state");
-			assert.ok(stored.count < 10, "Should reflect consumed tokens in distributed storage");
+			assert.strictEqual(
+				stored.count,
+				-1,
+				"Should reflect consumed tokens in distributed storage",
+			);
 		});
 
 		it("respects distributed throttling limits", async () => {
@@ -271,7 +279,7 @@ describe("DistributedTokenBucketThrottler", () => {
 				distributedTokenBucket: {
 					capacity: 3, // Low distributed capacity for easy testing
 					refillRatePerMs: 1,
-					minCooldownIntervalMs: 100,
+					minCooldownIntervalMs: 1000, // Longer cooldown to avoid refilling too quickly
 					distributedSyncIntervalInMs: 100, // Short sync interval
 				},
 			};
@@ -285,6 +293,9 @@ describe("DistributedTokenBucketThrottler", () => {
 
 			// Use up the distributed capacity gradually
 			throttler.incrementCount(id, 1); // 1/3
+			// Wait for initial set to complete.
+			await Sinon.clock.nextAsync();
+
 			throttler.incrementCount(id, 1); // 2/3
 			throttler.incrementCount(id, 1); // 3/3 - at capacity
 

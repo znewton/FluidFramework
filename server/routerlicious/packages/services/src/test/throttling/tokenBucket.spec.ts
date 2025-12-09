@@ -5,7 +5,6 @@
 
 import assert from "assert";
 import Sinon from "sinon";
-import { TestEngine1, Lumberjack } from "@fluidframework/server-services-telemetry";
 import { TestThrottleAndUsageStorageManager } from "@fluidframework/server-test-utils";
 import {
 	TokenBucket,
@@ -13,11 +12,6 @@ import {
 	ITokenBucketConfig,
 	IDistributedTokenBucketConfig,
 } from "../../throttling/tokenBucket";
-
-const lumberjackEngine = new TestEngine1();
-if (!Lumberjack.isSetupCompleted()) {
-	Lumberjack.setup([lumberjackEngine]);
-}
 
 describe("TokenBucket", () => {
 	beforeEach(() => {
@@ -319,7 +313,7 @@ describe("DistributedTokenBucket", () => {
 			const config: IDistributedTokenBucketConfig = {
 				capacity: 10,
 				refillRatePerMs: 1,
-				minCooldownIntervalMs: 100,
+				minCooldownIntervalMs: 1000, // long cooldown interval to avoid immediate refill before sync
 				distributedSyncIntervalInMs: 500,
 				enableEnhancedTelemetry: false,
 			};
@@ -328,10 +322,10 @@ describe("DistributedTokenBucket", () => {
 
 			// Consume some tokens
 			bucket.tryConsume(5);
-
+			// Wait for initial set to complete.
+			await Sinon.clock.nextAsync();
 			// Advance time to trigger sync
-			Sinon.clock.tick(600);
-
+			Sinon.clock.tick(510);
 			// Next consumption should trigger sync
 			bucket.tryConsume(1);
 
@@ -434,23 +428,270 @@ describe("DistributedTokenBucket", () => {
 			assert.strictEqual(storedUsage.tenantId, "test-tenant");
 		});
 
-		it("handles negative tokens (replenishment)", () => {
+		it("handles negative tokens (replenishment)", async () => {
 			const config: IDistributedTokenBucketConfig = {
-				capacity: 10,
+				capacity: 3, // Low capacity to test replenishment
 				refillRatePerMs: 1,
-				minCooldownIntervalMs: 100,
+				minCooldownIntervalMs: 1000, // long cooldown interval to avoid immediate refill before sync
 				distributedSyncIntervalInMs: 500,
 				enableEnhancedTelemetry: false,
 			};
 			const storageManager = new TestThrottleAndUsageStorageManager();
 			const bucket = new DistributedTokenBucket("test-id", storageManager, config);
 
-			// Consume some tokens
-			bucket.tryConsume(5);
+			// Consume more tokens than capacity
+			bucket.tryConsume(3);
+			// Wait for initial set to complete.
+			await Sinon.clock.nextAsync();
+			// Force sync by setting time past interval
+			Sinon.clock.tick(600);
 
 			// Replenish tokens
-			const result = bucket.tryConsume(-3);
+			const result = bucket.tryConsume(-3); // Replenish 3 tokens (3 - 3 + 3 = 3)
 			assert.strictEqual(result, 0, "Should allow replenishment");
+			assert.doesNotThrow(() => {
+				bucket.tryConsume(1); // Should not throw after replenishment (3 - 3 + 3 = 3 => 3 - 1 = 2)
+			});
+		});
+
+		it("handles multiple buckets with staggered sync times", async () => {
+			const config: IDistributedTokenBucketConfig = {
+				capacity: 10,
+				refillRatePerMs: 1,
+				minCooldownIntervalMs: 1000,
+				distributedSyncIntervalInMs: 500,
+				enableEnhancedTelemetry: false,
+			};
+			const storageManager = new TestThrottleAndUsageStorageManager();
+
+			// Initialize storage with some consumed tokens
+			await storageManager.setThrottlingMetric("shared-id", {
+				count: 0, // Fully consumed
+				lastCoolDownAt: Date.now(),
+				throttleStatus: false,
+				throttleReason: "",
+				retryAfterInMs: 0,
+			});
+
+			const bucket1 = new DistributedTokenBucket("shared-id", storageManager, config);
+			const bucket2 = new DistributedTokenBucket("shared-id", storageManager, config);
+
+			// Bucket 1 syncs first
+			Sinon.clock.tick(600);
+			bucket1.tryConsume(1);
+			await Sinon.clock.nextAsync();
+
+			let stored = await storageManager.getThrottlingMetric("shared-id");
+			assert.ok(stored);
+			// const countAfterBucket1 = stored.count;
+
+			// Bucket 2 syncs after cooldown period has passed
+			Sinon.clock.tick(1100); // Total: 1700ms
+			bucket2.tryConsume(1);
+			await Sinon.clock.nextAsync();
+
+			stored = await storageManager.getThrottlingMetric("shared-id");
+			assert.ok(stored);
+
+			// With staggered syncs respecting cooldown, refill should happen correctly
+			// After ~1700ms with 1 token/ms refill rate, we should have refilled tokens
+			// but capped at capacity (10)
+			assert.ok(stored.count >= 0, "Should have refilled tokens with staggered sync");
+		});
+
+		it("exposes bug: multiple buckets syncing simultaneously cause over-refill", async () => {
+			const config: IDistributedTokenBucketConfig = {
+				capacity: 10,
+				refillRatePerMs: 1,
+				minCooldownIntervalMs: 1000,
+				distributedSyncIntervalInMs: 500,
+				enableEnhancedTelemetry: false,
+			};
+			const storageManager = new TestThrottleAndUsageStorageManager();
+
+			const baseTime = Date.now();
+
+			// Initialize storage with consumed tokens
+			await storageManager.setThrottlingMetric("shared-id", {
+				count: 0, // Fully consumed
+				lastCoolDownAt: baseTime,
+				throttleStatus: false,
+				throttleReason: "",
+				retryAfterInMs: 0,
+			});
+
+			const bucket1 = new DistributedTokenBucket("shared-id", storageManager, config);
+			const bucket2 = new DistributedTokenBucket("shared-id", storageManager, config);
+			const bucket3 = new DistributedTokenBucket("shared-id", storageManager, config);
+
+			// Wait past cooldown and sync interval
+			Sinon.clock.tick(1500); // 1500ms elapsed
+
+			// All buckets sync at the same time (simulating concurrent requests)
+			bucket1.tryConsume(1);
+			bucket2.tryConsume(1);
+			bucket3.tryConsume(1);
+
+			// Wait for all async operations to complete
+			await Sinon.clock.nextAsync();
+
+			const stored = await storageManager.getThrottlingMetric("shared-id");
+			assert.ok(stored);
+
+			// Expected behavior: After 1500ms with 1 token/ms refill rate,
+			// we should have ~1500 tokens added, but capped at capacity (10)
+			// Then we consume 3 tokens (one from each bucket)
+			// Result should be: 10 - 3 = 7 tokens
+
+			// Actual bug: Each bucket calculates replenishment independently
+			// Bucket 1: reads count=0, calculates +1500 (capped at 10), consumes 1, writes 9
+			// Bucket 2: reads count=9, calculates +1500 (capped at 10), consumes 1, writes 9
+			// Bucket 3: reads count=9, calculates +1500 (capped at 10), consumes 1, writes 9
+			// The last write wins, but tokens were over-refilled
+
+			// This test demonstrates the race condition
+			console.log(`Stored count after simultaneous sync: ${stored.count}`);
+			console.log(`Expected: 7, Actual: ${stored.count}`);
+
+			// The bug may manifest as count being higher than expected
+			// or as inconsistent state depending on write order
+			assert.ok(stored.count <= 10, "Should respect capacity");
+
+			// Note: The exact assertion here depends on timing and order of async operations
+			// This test primarily serves to document the behavior
+		});
+
+		it("exposes bug: multiple buckets consuming different amounts with simultaneous sync", async () => {
+			const config: IDistributedTokenBucketConfig = {
+				capacity: 20,
+				refillRatePerMs: 2,
+				minCooldownIntervalMs: 500,
+				distributedSyncIntervalInMs: 300,
+				enableEnhancedTelemetry: false,
+			};
+			const storageManager = new TestThrottleAndUsageStorageManager();
+
+			const baseTime = Date.now();
+
+			await storageManager.setThrottlingMetric("shared-id", {
+				count: 5, // Starting with 5 tokens
+				lastCoolDownAt: baseTime,
+				throttleStatus: false,
+				throttleReason: "",
+				retryAfterInMs: 0,
+			});
+
+			const bucket1 = new DistributedTokenBucket("shared-id", storageManager, config);
+			const bucket2 = new DistributedTokenBucket("shared-id", storageManager, config);
+
+			// Advance past cooldown and sync interval
+			Sinon.clock.tick(600); // 600ms * 2 tokens/ms = 1200 tokens (capped at 20)
+
+			// Buckets sync simultaneously with different consumption amounts
+			bucket1.tryConsume(3);
+			bucket2.tryConsume(5);
+
+			await Sinon.clock.nextAsync();
+
+			const stored = await storageManager.getThrottlingMetric("shared-id");
+			assert.ok(stored);
+
+			// Expected: capacity (20) - 3 - 5 = 12 tokens remaining
+			// Bug behavior: Each bucket independently calculates refill to 20,
+			// then consumes its amount, leading to inconsistent state (either 15 or 17 in this case)
+
+			console.log(`Multi-consumption stored count: ${stored.count}`);
+			assert.ok(stored.count <= 20, "Should not exceed capacity");
+		});
+
+		it("demonstrates token debt handling with multiple buckets", async () => {
+			const config: IDistributedTokenBucketConfig = {
+				capacity: 10,
+				refillRatePerMs: 1,
+				minCooldownIntervalMs: 500,
+				distributedSyncIntervalInMs: 300,
+				enableEnhancedTelemetry: false,
+			};
+			const storageManager = new TestThrottleAndUsageStorageManager();
+
+			const baseTime = Date.now();
+
+			// Start with negative tokens (debt)
+			await storageManager.setThrottlingMetric("shared-id", {
+				count: -10, // In debt
+				lastCoolDownAt: baseTime,
+				throttleStatus: true,
+				throttleReason: "Over capacity",
+				retryAfterInMs: 1000,
+			});
+
+			const bucket1 = new DistributedTokenBucket("shared-id", storageManager, config);
+			const bucket2 = new DistributedTokenBucket("shared-id", storageManager, config);
+
+			// Wait past cooldown to allow refill
+			Sinon.clock.tick(600); // 600ms * 1 token/ms = 600 tokens
+
+			// Both buckets sync at same time
+			bucket1.tryConsume(1);
+			bucket2.tryConsume(1);
+
+			await Sinon.clock.nextAsync();
+
+			const stored = await storageManager.getThrottlingMetric("shared-id");
+			assert.ok(stored);
+
+			// Expected: -10 + 600 (capped at 10) - 1 - 1 = 8
+			// Bug: Each may independently calculate replenishment from -10
+
+			console.log(`Debt recovery stored count: ${stored.count}`);
+			assert.ok(stored.count <= 10, "Should not exceed capacity even after debt recovery");
+		});
+
+		it("rapid sequential syncs from multiple buckets", async () => {
+			const config: IDistributedTokenBucketConfig = {
+				capacity: 15,
+				refillRatePerMs: 0.01, // Very slow refill to minimize refill impact
+				minCooldownIntervalMs: 1000, // Long cooldown to minimize refill impact
+				distributedSyncIntervalInMs: 100,
+				enableEnhancedTelemetry: false,
+			};
+			const storageManager = new TestThrottleAndUsageStorageManager();
+
+			const bucket1 = new DistributedTokenBucket("shared-id", storageManager, config);
+			const bucket2 = new DistributedTokenBucket("shared-id", storageManager, config);
+			const bucket3 = new DistributedTokenBucket("shared-id", storageManager, config);
+
+			// Sequential synced consumption from multiple buckets
+			bucket1.tryConsume(5);
+			// Wait for initial set to complete.
+			await Sinon.clock.nextAsync();
+			Sinon.clock.tick(110);
+			bucket1.tryConsume(1); // Triggers sync
+
+			await Sinon.clock.nextAsync();
+
+			bucket2.tryConsume(3);
+			Sinon.clock.tick(110);
+			bucket2.tryConsume(1); // Triggers sync
+
+			await Sinon.clock.nextAsync();
+
+			bucket3.tryConsume(2);
+			Sinon.clock.tick(110);
+			bucket3.tryConsume(1); // Triggers sync
+
+			await Sinon.clock.nextAsync();
+
+			const stored = await storageManager.getThrottlingMetric("shared-id");
+			assert.ok(stored);
+
+			// Total consumed: 5+1 + 3+1 + 2+1 = 13 tokens
+			// Total time elapsed: 330ms, no refill
+			// Expected final count: 15 - 13 = 2 tokens (approximately 2)
+
+			console.log(`Rapid sequential stored count: ${stored.count}`);
+			assert.strictEqual(stored.count, 2, "Should track consumption correctly");
+			assert.ok(stored.count <= 15, "Should not exceed capacity");
 		});
 	});
 

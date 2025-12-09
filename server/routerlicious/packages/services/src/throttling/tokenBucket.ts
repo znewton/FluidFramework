@@ -10,7 +10,10 @@ import {
 } from "@fluidframework/server-services-core";
 import { Lumberjack } from "@fluidframework/server-services-telemetry";
 
-import { getThrottlingBaseTelemetryProperties } from "./utils";
+import {
+	getCommonThrottlingMetricTelemetryProperties,
+	getThrottlingBaseTelemetryProperties,
+} from "./utils";
 
 /**
  * @internal
@@ -222,92 +225,154 @@ export class DistributedTokenBucket implements ITokenBucket {
 		};
 	}
 
-	private async tryConsumeCore(usageData?: IUsageData): Promise<void> {
+	private async tryConsumeCore(
+		tokensConsumed: number,
+		tokensRequested: number,
+		usageData?: IUsageData,
+	): Promise<void> {
 		const now = Date.now();
 		this.lastSyncTimestamp = now;
-		const defaultThrottlingMetric: IThrottlingMetrics = {
-			count: this.config.capacity,
-			lastCoolDownAt: now,
-			throttleStatus: false,
-			throttleReason: "",
-			retryAfterInMs: 0,
-		};
-		const throttlingMetric: IThrottlingMetrics =
-			(await this.throttleAndUsageStorageManager.getThrottlingMetric(this.remoteId)) ??
-			defaultThrottlingMetric;
-		// adjust "tokens" by the amount consumed since last sync
-		throttlingMetric.count -= this.tokensConsumedSinceLastSync;
+		const maxConflictRetries = 3;
+		let conflictRetries = 0;
+		while (conflictRetries < maxConflictRetries) {
+			const defaultThrottlingMetric: IThrottlingMetrics = {
+				count: this.config.capacity,
+				lastCoolDownAt: now,
+				throttleStatus: false,
+				throttleReason: "",
+				retryAfterInMs: 0,
+				version: 0,
+			};
+			const throttlingMetric: IThrottlingMetrics =
+				(await this.throttleAndUsageStorageManager.getThrottlingMetric(this.remoteId)) ??
+				defaultThrottlingMetric;
+			const newVersion = (throttlingMetric.version ?? 0) + 1;
 
-		// Exit early if already throttled and no chance of being unthrottled
-		const retryAfterInMs = this.getRetryAfterInMs(throttlingMetric, now);
-		if (retryAfterInMs > 0) {
-			if (this.config.enableEnhancedTelemetry) {
-				Lumberjack.verbose("DistributedTokenBucket: Already throttled, exiting early", {
-					...getThrottlingBaseTelemetryProperties().baseLumberjackProperties,
-					remoteId: this.remoteId,
-					tokensConsumedSinceLastSync: this.tokensConsumedSinceLastSync,
-					currentCount: throttlingMetric.count,
-					retryAfterInMs,
-				});
+			// adjust "tokens" by the amount consumed since last sync
+			throttlingMetric.count -= tokensConsumed;
+
+			// Exit early if already throttled and no chance of being unthrottled
+			const retryAfterInMs = this.getRetryAfterInMs(throttlingMetric, now);
+			if (retryAfterInMs > 0) {
+				if (this.config.enableEnhancedTelemetry) {
+					Lumberjack.verbose("DistributedTokenBucket: Already throttled, exiting early", {
+						...getThrottlingBaseTelemetryProperties().baseLumberjackProperties,
+						...getCommonThrottlingMetricTelemetryProperties(
+							this.remoteId,
+							throttlingMetric,
+						),
+						tokensRequested,
+						tokensConsumedSinceLastSync: tokensConsumed,
+					});
+				}
+				throttlingMetric.retryAfterInMs = retryAfterInMs;
+				const currentVersion =
+					await this.throttleAndUsageStorageManager.getThrottlingMetric(this.remoteId);
+				if (currentVersion && currentVersion.version !== throttlingMetric.version) {
+					// If the version has changed, it means there was a conflict. Retry.
+					if (this.config.enableEnhancedTelemetry) {
+						Lumberjack.verbose(
+							"DistributedTokenBucket: Version conflict detected, retrying",
+							{
+								...getThrottlingBaseTelemetryProperties().baseLumberjackProperties,
+								...getCommonThrottlingMetricTelemetryProperties(
+									this.remoteId,
+									throttlingMetric,
+								),
+								tokensRequested,
+								tokensConsumedSinceLastSync: tokensConsumed,
+								expectedVersion: throttlingMetric.version,
+							},
+						);
+					}
+					conflictRetries++;
+					if (conflictRetries >= maxConflictRetries) {
+						Lumberjack.error(
+							"DistributedTokenBucket: Failed to resolve conflict, abandoning",
+							{
+								...getThrottlingBaseTelemetryProperties().baseLumberjackProperties,
+								...getCommonThrottlingMetricTelemetryProperties(
+									this.remoteId,
+									throttlingMetric,
+								),
+								tokensRequested,
+								tokensConsumedSinceLastSync: tokensConsumed,
+								expectedVersion: throttlingMetric.version,
+							},
+						);
+						// Re-add the tokens that were consumed but not synced.
+						this.tokensConsumedSinceLastSync += tokensConsumed;
+					}
+					continue;
+				}
+				await this.setThrottlingMetricAndUsageData(
+					{ ...throttlingMetric, version: newVersion },
+					usageData,
+				);
+				this.lastConsumeTokensSyncResult = throttlingMetric.retryAfterInMs;
+				break;
 			}
-			throttlingMetric.retryAfterInMs = retryAfterInMs;
-			await this.setThrottlingMetricAndUsageData(throttlingMetric, usageData);
+
+			// replenish "tokens" if possible
+			const amountToReplenish = this.getTokenReplenishAmount(throttlingMetric, now);
+			if (amountToReplenish > 0) {
+				throttlingMetric.count += amountToReplenish;
+				throttlingMetric.lastCoolDownAt = now;
+				if (this.config.enableEnhancedTelemetry) {
+					Lumberjack.verbose("DistributedTokenBucket: Replenishing tokens", {
+						...getThrottlingBaseTelemetryProperties().baseLumberjackProperties,
+						...getCommonThrottlingMetricTelemetryProperties(
+							this.remoteId,
+							throttlingMetric,
+						),
+						tokensRequested,
+						amountToReplenish,
+					});
+				}
+			}
+
+			// throttle if "token bucket" is empty
+			const newRetryAfterInMs = this.getRetryAfterInMs(throttlingMetric, now);
+			if (newRetryAfterInMs > 0) {
+				throttlingMetric.throttleStatus = true;
+				throttlingMetric.throttleReason = `Throttling count exceeded by ${Math.abs(
+					throttlingMetric.count,
+				)} at ${new Date(now).toISOString()}`;
+				throttlingMetric.retryAfterInMs = newRetryAfterInMs;
+				if (this.config.enableEnhancedTelemetry) {
+					Lumberjack.verbose("DistributedTokenBucket: Setting throttle status", {
+						...getThrottlingBaseTelemetryProperties().baseLumberjackProperties,
+						...getCommonThrottlingMetricTelemetryProperties(
+							this.remoteId,
+							throttlingMetric,
+						),
+						tokensRequested,
+					});
+				}
+			} else {
+				throttlingMetric.throttleStatus = false;
+				throttlingMetric.throttleReason = "";
+				throttlingMetric.retryAfterInMs = 0;
+				if (this.config.enableEnhancedTelemetry) {
+					Lumberjack.verbose("DistributedTokenBucket: Clearing throttle status", {
+						...getThrottlingBaseTelemetryProperties().baseLumberjackProperties,
+						...getCommonThrottlingMetricTelemetryProperties(
+							this.remoteId,
+							throttlingMetric,
+						),
+						tokensRequested,
+					});
+				}
+			}
+
+			await this.setThrottlingMetricAndUsageData(
+				{ ...throttlingMetric, version: newVersion },
+				usageData,
+			);
+
 			this.lastConsumeTokensSyncResult = throttlingMetric.retryAfterInMs;
-			// Always reset tokensConsumedSinceLastSync after sync, regardless of throttling status
-			this.tokensConsumedSinceLastSync = 0;
-			return;
+			break;
 		}
-
-		// replenish "tokens" if possible
-		const amountToReplenish = this.getTokenReplenishAmount(throttlingMetric, now);
-		if (amountToReplenish > 0) {
-			throttlingMetric.count += amountToReplenish;
-			throttlingMetric.lastCoolDownAt = now;
-			if (this.config.enableEnhancedTelemetry) {
-				Lumberjack.verbose("DistributedTokenBucket: Replenishing tokens", {
-					...getThrottlingBaseTelemetryProperties().baseLumberjackProperties,
-					remoteId: this.remoteId,
-					amountToReplenish,
-					newCount: throttlingMetric.count,
-				});
-			}
-		}
-
-		// throttle if "token bucket" is empty
-		const newRetryAfterInMs = this.getRetryAfterInMs(throttlingMetric, now);
-		if (newRetryAfterInMs > 0) {
-			throttlingMetric.throttleStatus = true;
-			throttlingMetric.throttleReason = `Throttling count exceeded by ${Math.abs(
-				throttlingMetric.count,
-			)} at ${new Date(now).toISOString()}`;
-			throttlingMetric.retryAfterInMs = newRetryAfterInMs;
-			if (this.config.enableEnhancedTelemetry) {
-				Lumberjack.verbose("DistributedTokenBucket: Setting throttle status", {
-					...getThrottlingBaseTelemetryProperties().baseLumberjackProperties,
-					remoteId: this.remoteId,
-					currentCount: throttlingMetric.count,
-					retryAfterInMs: newRetryAfterInMs,
-					throttleReason: throttlingMetric.throttleReason,
-				});
-			}
-		} else {
-			throttlingMetric.throttleStatus = false;
-			throttlingMetric.throttleReason = "";
-			throttlingMetric.retryAfterInMs = 0;
-			if (this.config.enableEnhancedTelemetry) {
-				Lumberjack.verbose("DistributedTokenBucket: Clearing throttle status", {
-					...getThrottlingBaseTelemetryProperties().baseLumberjackProperties,
-					remoteId: this.remoteId,
-					currentCount: throttlingMetric.count,
-				});
-			}
-		}
-
-		await this.setThrottlingMetricAndUsageData(throttlingMetric, usageData);
-
-		this.lastConsumeTokensSyncResult = throttlingMetric.retryAfterInMs;
-		// Always reset tokensConsumedSinceLastSync after sync, regardless of throttling status
-		this.tokensConsumedSinceLastSync = 0;
 	}
 
 	private async setThrottlingMetricAndUsageData(
@@ -376,7 +441,10 @@ export class DistributedTokenBucket implements ITokenBucket {
 						: undefined,
 				});
 			}
-			this.tryConsumeCore(usageData).catch((error) => {
+			const tokensConsumedSinceLastSync = this.tokensConsumedSinceLastSync;
+			// Always reset tokensConsumedSinceLastSync when sync is triggered, regardless of throttling status
+			this.tokensConsumedSinceLastSync = 0;
+			this.tryConsumeCore(tokensConsumedSinceLastSync, tokens, usageData).catch((error) => {
 				Lumberjack.error("Failed to consume tokens", { error });
 			});
 		} else if (this.config.enableEnhancedTelemetry) {
